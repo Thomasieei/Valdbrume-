@@ -16,6 +16,7 @@ var mem := {}                          # mémoire de chaque habitant
 var log_lines: Array[String] = []
 var thugs: Array = []
 var agression := {}                    # état de l'événement du soir
+var label_owner: Node = null           # seul l'habitant le plus proche affiche son nom
 
 # ------------------------------------------------------------ emplois du temps
 # [heure de début, lieu, animation sur place, vitesse de marche]
@@ -78,6 +79,8 @@ func _process(dt: float) -> void:
 		_tick_minute()
 	_social(dt)
 	_tick_agression(dt)
+	var cam := get_viewport().get_camera_3d()
+	if cam: label_owner = nearest_npc(cam.global_position + (player.global_position - cam.global_position) * 0.6 if player else cam.global_position, 8.0)
 
 func _current_entry(id: String) -> Array:
 	var s: Array = SCHED[id]

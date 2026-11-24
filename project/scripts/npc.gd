@@ -65,7 +65,8 @@ func react(anim_name: String, duration: float, look_at_pos := Vector3.ZERO) -> v
 
 func _process(dt: float) -> void:
 	if hidden_inside: return
-	talk_cd = max(talk_cd - dt, 0.0)
+	var gdt: float = dt * life.minutes_per_second / 0.5     # durées exprimées au rythme normal
+	talk_cd = max(talk_cd - gdt, 0.0)
 	# économie : animations moins fréquentes quand le personnage est loin
 	var cam := get_viewport().get_camera_3d()
 	var d := cam.global_position.distance_to(global_position) if cam else 0.0
@@ -75,9 +76,9 @@ func _process(dt: float) -> void:
 		lod_t += dt
 		if lod_t > (0.066 if d < 90.0 else 0.15):
 			vis.anim.advance(lod_t); lod_t = 0.0
-	label.visible = d < 9.0
+	label.visible = d < 7.0 and life.label_owner == self
 	if busy_t > 0.0:
-		busy_t -= dt
+		busy_t -= gdt
 		if face_target != Vector3.ZERO:
 			var to := face_target - global_position
 			vis.rotation.y = lerp_angle(vis.rotation.y, atan2(to.x, to.z), 1.0 - exp(-8.0 * dt))

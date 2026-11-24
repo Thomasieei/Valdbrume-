@@ -230,7 +230,9 @@ func _capture_life(cam: Camera3D, out: String, report: Array) -> void:
 	player.position = Vector3(0, 0.3, 34)
 	cam.current = true
 	cam.global_position = spot + Vector3(1.5, 1.7, 8.0); cam.look_at(spot + Vector3(0, 1.0, 0))
-	for i in 270: await get_tree().process_frame
+	var guard := 0
+	while guard < 4000 and not (life.agression.get("etat", "") == "menace" and life.agression.t > 4.6):
+		await get_tree().process_frame; guard += 1
 	await _shot(out, "46_soir_agression_theo", report)
 
 ## simulation d'une journée complète (sans rendu) : chacun atteint-il ses lieux ?
