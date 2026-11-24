@@ -16,7 +16,7 @@ float fbm(vec2 p) { float v = 0.0; float a = 0.5; for (int i = 0; i < 4; i++) { 
 
 void fragment() {
 	vec2 p = (UV - 0.5) * vec2(2.0, 2.0);
-	float r = length(p * vec2(1.0, 0.72));             // ovale plus haut que large
+	float r = length(p) * 1.12;                       // l'ovale suit les proportions du quad (plus haut que large)
 	float ang = atan(p.y, p.x);
 	float t = TIME * (0.35 + instab * 0.8);
 	// spirale : on enroule les coordonnées autour du centre
