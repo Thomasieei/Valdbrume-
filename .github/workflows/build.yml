@@ -47,6 +47,8 @@ jobs:
           ~/godot/godot --headless --path project --import 2>&1 | grep -iE "error|warn" | head -40 || true
       - name: Traversée du boulevard (physique)
         run: timeout 900 ~/godot/godot --headless --path project --fixed-fps 60 -- --traverse 2>&1 | grep -E "TRAVERSEE|ERROR|SCRIPT" | head -30
+      - name: Vie de la ville (une journée simulée)
+        run: timeout 900 ~/godot/godot --headless --path project -- --vie 2>&1 | grep -E "VIE|ERROR|SCRIPT|Parse" | head -30
       - name: Captures en jeu
         run: |
           timeout 1800 xvfb-run -a -s "-screen 0 1280x720x24" ~/godot/godot --path project --rendering-method mobile --rendering-driver vulkan --resolution 1280x720 -- --capture 2>&1 | grep -vE "^\s*$" | tail -60

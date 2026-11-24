@@ -4,3 +4,6 @@ build/
 captures/
 __pycache__/
 *.pyc
+project/assets/characters/gen/
+project/assets/characters/anims/
+project/assets/characters/base/

@@ -10,6 +10,7 @@ var ui: CanvasLayer
 var stats: Label
 var env: Environment
 var sun: DirectionalLight3D
+var life: Node
 
 func _ready() -> void:
 	_environment()
@@ -23,11 +24,17 @@ func _ready() -> void:
 	var sp: Array = city.meta.spawn
 	player.position = Vector3(sp[0], sp[1], sp[2])
 	add_child(player)
+	life = Node.new()
+	life.name = "Vie"
+	life.set_script(load("res://scripts/life.gd"))
+	add_child(life)
+	life.setup(city.meta, player)
 	ui = CanvasLayer.new()
 	add_child(ui)
 	var tc := Control.new()
-	tc.set_script(load("res://scripts/touch_controls.gd"))
+	tc.set_script(load("res://scripts/hud.gd"))
 	tc.player = player
+	tc.life = life
 	ui.add_child(tc)
 	stats = Label.new()
 	stats.position = Vector2(16, 10)
@@ -38,6 +45,7 @@ func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	if "--capture" in args: _capture.call_deferred()
 	elif "--traverse" in args: _traverse.call_deferred()
+	elif "--vie" in args: _simulate_life.call_deferred()
 
 func _environment() -> void:
 	var we := WorldEnvironment.new()
@@ -127,6 +135,8 @@ func _capture() -> void:
 			"objets": RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME),
 			"triangles": RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME)})
 		print("capture ", v.name, " ", report[-1])
+	await _capture_characters(cam, out, report)
+	await _capture_life(cam, out, report)
 	# vue avec le joueur (3e personne) sur le boulevard
 	player.position = Vector3(-80, 0.2, 3)
 	player.yaw = -PI / 2.0 - 0.35
@@ -140,6 +150,104 @@ func _capture() -> void:
 	var f := FileAccess.open(out.path_join("rapport_rendu.json"), FileAccess.WRITE)
 	f.store_string(JSON.stringify(report, "  "))
 	f.close()
+	get_tree().quit()
+
+func _shot(out: String, name: String, report: Array) -> void:
+	await _wait(20)
+	get_viewport().get_texture().get_image().save_png(out.path_join(name + ".png"))
+	report.append({"vue": name,
+		"appels": RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
+		"triangles": RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME)})
+	print("capture ", name, " ", report[-1])
+
+## galerie : les 11 personnages alignés sur l'anneau de marbre de la place, puis le héros en action
+func _capture_characters(cam: Camera3D, out: String, report: Array) -> void:
+	var ids := ["heros", "lea", "hugo", "ines", "marc", "sofia", "karim", "chloe", "theo", "nadia", "victor"]
+	var shown: Array = []
+	life.process_mode = Node.PROCESS_MODE_DISABLED
+	for n in life.npcs.values(): n.visible = false
+	for i in ids.size():
+		var v := CharacterVisual.new()
+		add_child(v); v.setup(ids[i])
+		v.position = Vector3(-10.0 + i * 2.0, 0.0, 24.5)
+		v.rotation.y = 0.0
+		v.play(["Idle_Loop", "Idle_Talking_Loop", "Idle_LookAround_Loop", "Idle_Loop", "Idle_FoldArms_Loop", "Idle_Loop", "Idle_Loop", "Idle_TalkingPhone_Loop", "Idle_Loop", "Idle_FoldArms_Loop", "Idle_Loop"][i], 0.0)
+		shown.append(v)
+	player.position = Vector3(0, -50, 0)
+	cam.current = true
+	cam.global_position = Vector3(0, 1.4, 35.0); cam.look_at(Vector3(0, 1.0, 24.5))
+	await _shot(out, "30_les_onze", report)
+	for i in [0, 1, 4, 7, 10]:
+		var p: Vector3 = shown[i].position
+		cam.global_position = p + Vector3(0.35, 1.62, 1.6); cam.look_at(p + Vector3(0, 1.45, 0))
+		await _shot(out, "31_portrait_" + ids[i], report)
+	for v in shown: v.queue_free()
+	# le héros en action (pose figée au milieu de l'animation)
+	var hero := CharacterVisual.new(); add_child(hero); hero.setup("heros")
+	hero.position = Vector3(-22, 0, 36); hero.rotation.y = deg_to_rad(60)
+	var poses := [["Sprint_Loop", 0.3, ""], ["Sword_Heavy_B", 0.45, "epee"], ["Sword_Aerial_A", 0.4, "epee"], ["Spell_Double_Shoot_Loop", 0.5, ""], ["Roll", 0.4, ""], ["Melee_Uppercut", 0.5, ""], ["Bow_Shoot", 0.3, ""], ["Slide_Loop", 0.4, ""], ["NinjaJump_Double", 0.4, ""], ["WallRun_L_Loop", 0.4, ""]]
+	for po in poses:
+		hero.set_weapon(po[2])
+		hero.play(po[0], 0.0, 1.0, true)
+		hero.anim.seek(hero.length(po[0]) * po[1], true)
+		hero.anim.pause()
+		cam.global_position = hero.position + Vector3(2.4, 1.3, 2.2); cam.look_at(hero.position + Vector3(0, 0.95, 0))
+		await _shot(out, "32_heros_" + po[0].to_lower(), report)
+	hero.queue_free()
+	for n in life.npcs.values(): n.visible = true
+	life.process_mode = Node.PROCESS_MODE_INHERIT
+
+## la vie en ville à différentes heures
+func _capture_life(cam: Camera3D, out: String, report: Array) -> void:
+	var shots := [
+		[7 * 60 + 40, "fleuriste", Vector3(6, 1.6, 7), "40_matin_fleuriste_sofia_karim"],
+		[8 * 60 + 30, "boulangerie", Vector3(-6, 1.6, 2), "41_matin_boulangerie_lea"],
+		[12 * 60 + 50, "cafe", Vector3(7, 1.7, 6), "42_midi_cafe"],
+		[9 * 60 + 30, "garage", Vector3(-6, 1.6, 4), "43_garage_karim"],
+		[19 * 60 + 20, "banc_place_s", Vector3(3, 1.6, 6), "44_soir_banc_sofia_karim"],
+		[21 * 60 + 30, "gare", Vector3(6, 1.7, 4), "45_nuit_gare_marc"],
+	]
+	for s in shots:
+		life.minute = s[0]
+		life.warp()
+		await _wait(5)
+		var p: Dictionary = life.places[s[1]]
+		var at := Vector3(p.pos[0], p.pos[1], p.pos[2])
+		cam.current = true
+		cam.global_position = at + s[2]; cam.look_at(at + Vector3(0, 1.1, 0))
+		await _shot(out, s[3], report)
+
+## simulation d'une journée complète (sans rendu) : chacun atteint-il ses lieux ?
+func _simulate_life() -> void:
+	var out := ProjectSettings.globalize_path("res://").path_join("../captures")
+	DirAccess.make_dir_recursive_absolute(out)
+	life.minute = 5 * 60
+	life.warp()
+	life.minutes_per_second = 20.0           # 1 minute de jeu = 3 images à 60 i/s
+	var res := {"etapes": [], "bloques": []}
+	var last := {}
+	var still := {}
+	var t := 0.0
+	while not (life.day == 2 and life.minute >= 5 * 60):
+		await get_tree().process_frame
+		t += 1.0 / 60.0
+		if life.minute % 60 == 0 and int(t * 60) % 3 == 0:
+			var row := {"heure": life.clock_text()}
+			for id in life.npcs:
+				var n: Npc = life.npcs[id]
+				row[id] = "%s%s" % [n.place, "" if n.arrived() else " (en route)"]
+				var pp: Vector3 = n.global_position
+				if not n.arrived() and last.has(id) and pp.distance_to(last[id]) < 0.05:
+					still[id] = still.get(id, 0) + 1
+					if still[id] == 20: res.bloques.append("%s bloqué près de %s à %s" % [id, str(pp), life.clock_text()])
+				else: still[id] = 0
+				last[id] = pp
+			if res.etapes.is_empty() or res.etapes[-1].heure != row.heure: res.etapes.append(row)
+	res["journal"] = life.log_lines
+	res["memoire"] = life.mem
+	var f := FileAccess.open(out.path_join("vie_journee.json"), FileAccess.WRITE)
+	f.store_string(JSON.stringify(res, "  ")); f.close()
+	print("VIE bloques=", res.bloques.size(), " evenements=", life.log_lines.size())
 	get_tree().quit()
 
 func _traverse() -> void:

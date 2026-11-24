@@ -8,7 +8,7 @@ Puis écrit les fichiers .import (compression, LOD, tangentes)."""
 import os, sys, json, math, hashlib, shutil
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
-import bake, impostor, build_city, streets, skyline
+import bake, impostor, build_city, streets, skyline, nav
 
 ROOT = bake.ROOT
 PROJ = os.path.join(ROOT, 'project')
@@ -157,6 +157,58 @@ def viewpoints():
         dict(name='20_boulevard_loin', eye=[-360, 1.7, -3], at=[0, 8, 0]),
     ]
 
+def write_import_anim(path):
+    open(path + '.import', 'w').write('''[remap]
+
+importer="animation_library"
+type="AnimationLibrary"
+
+[params]
+
+nodes/root_type=""
+nodes/root_name=""
+nodes/apply_root_scale=true
+nodes/root_scale=1.0
+meshes/ensure_tangents=false
+meshes/generate_lods=false
+meshes/create_shadow_meshes=false
+skins/use_named_skins=true
+animation/import=true
+animation/fps=30
+animation/trimming=false
+animation/remove_immutable_tracks=true
+animation/import_rest_as_RESET=false
+import_script/path=""
+_subresources={}
+gltf/naming_version=1
+gltf/embedded_image_handling=1
+''')
+
+def build_characters():
+    """personnages : génération des modèles habillés, copie des animations et coiffures."""
+    import characters
+    characters.main()
+    cdir = os.path.join(PROJ, 'assets', 'characters')
+    for f in os.listdir(characters.OUT):
+        if f.endswith('.glb'):
+            write_import_scene(os.path.join(characters.OUT, f))
+    adir = os.path.join(cdir, 'anims'); os.makedirs(adir, exist_ok=True)
+    for f in ('UAL1.glb', 'UAL2.glb'):
+        shutil.copy(os.path.join(ROOT, 'vendor', 'quaternius', 'animations', f), os.path.join(adir, f))
+        write_import_anim(os.path.join(adir, f))
+    bdir = os.path.join(cdir, 'base'); os.makedirs(bdir, exist_ok=True)
+    src = os.path.join(ROOT, 'vendor', 'quaternius', 'base_characters')
+    for f in os.listdir(src):
+        if f.startswith('Hair_') or (f.startswith('T_Hair') and not f.endswith('_png.png')):
+            shutil.copy(os.path.join(src, f), os.path.join(bdir, f))
+    # les coiffures référencent des normales « _png.png » : on garde aussi ces noms
+    for f in os.listdir(src):
+        if f.startswith('T_Hair') and f.endswith('_png.png'):
+            shutil.copy(os.path.join(src, f), os.path.join(bdir, f))
+    for f in os.listdir(bdir):
+        if f.endswith('.gltf'): write_import_scene(os.path.join(bdir, f))
+        if f.endswith('.png'): write_import_texture(os.path.join(bdir, f), normal=('Normal' in f))
+
 def main():
     if os.path.isdir(GEN): shutil.rmtree(GEN)
     os.makedirs(os.path.join(GEN, 'chunks'), exist_ok=True)
@@ -170,6 +222,7 @@ def main():
     for ch in meta['chunks']: write_import_scene(os.path.join(GEN, 'chunks', ch['name'] + '.glb'))
     meta['islands'] = islands(); meta['ramps'] = ramps(); meta['views'] = viewpoints()
     meta['spawn'] = [0, 0.3, 34]
+    meta['nav'] = nav.build()
     meta['city'] = list(skyline.CITY)
     from builder import PALETTE
     meta['palette'] = [list(c) for c in PALETTE]
@@ -180,6 +233,7 @@ def main():
     for f in os.listdir(tdir):
         if f.endswith('.png'):
             write_import_texture(os.path.join(tdir, f), normal=('Normal' in f))
+    build_characters()
     print('ok', len(meta['chunks']), 'zones,', len(meta['boxes']), 'collisions,', len(meta['occluders']), 'occulteurs')
 
 if __name__ == '__main__':
