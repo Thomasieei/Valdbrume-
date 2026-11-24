@@ -5,7 +5,7 @@ extends Node
 
 signal changed
 const SAVE := "user://vie.json"
-var minutes_per_second := 1.0          # 1 journée = 24 minutes réelles
+var minutes_per_second := 0.5          # 1 journée = 48 minutes réelles
 var day := 1
 var minute := 7 * 60 + 30
 var astar := AStar3D.new()
@@ -142,9 +142,15 @@ func npc_arrived(n: Npc) -> void:
 		var fwd := Vector3(sin(rot), 0, cos(rot))
 		var side := Vector3(fwd.z, 0, -fwd.x)
 		var seat := shown.begins_with("Sitting")
-		var off := side * (0.75 * others) if seat else fwd * 1.3 + side * (0.5 * (others - 1))
-		at.pos = [at.pos[0] + off.x, at.pos[1], at.pos[2] + off.z]
-		if not seat: at.rot = rad_to_deg(rot + PI)
+		if seat:
+			var off := side * (0.75 * others)
+			at.pos = [at.pos[0] + off.x, at.pos[1], at.pos[2] + off.z]
+		else:
+			# petit cercle de discussion autour du lieu, chacun tourné vers le centre
+			var ang := rot + PI + (others - 1) * 1.1 - 0.55 * min(others - 1, 2)
+			var off2 := Vector3(sin(ang), 0, cos(ang)) * 1.35
+			at.pos = [at.pos[0] + off2.x, at.pos[1], at.pos[2] + off2.z]
+			at.rot = rad_to_deg(atan2(-off2.x, -off2.z))
 	n.do_activity({"anim": shown, "lieu": n.place}, at)
 
 ## place chaque habitant directement à l'endroit où il doit être à cette heure

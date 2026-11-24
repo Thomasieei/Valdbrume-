@@ -203,7 +203,7 @@ func _capture_life(cam: Camera3D, out: String, report: Array) -> void:
 	var shots := [
 		[7 * 60 + 40, "fleuriste", Vector3(6, 1.6, 7), "40_matin_fleuriste_sofia_karim"],
 		[8 * 60 + 30, "boulangerie", Vector3(-6, 1.6, 2), "41_matin_boulangerie_lea"],
-		[12 * 60 + 50, "cafe", Vector3(7, 1.7, 6), "42_midi_cafe"],
+		[12 * 60 + 50, "cafe", Vector3(2, 1.7, -7.5), "42_midi_cafe"],
 		[9 * 60 + 30, "garage", Vector3(-6, 1.6, 4), "43_garage_karim"],
 		[19 * 60 + 20, "banc_place_s", Vector3(3, 1.6, 6), "44_soir_banc_sofia_karim"],
 		[21 * 60 + 30, "gare", Vector3(6, 1.7, 4), "45_nuit_gare_marc"],
@@ -229,7 +229,7 @@ func _capture_life(cam: Camera3D, out: String, report: Array) -> void:
 	theo.path = PackedVector3Array([spot + Vector3(0, 0, 1.0)]); theo.path_i = 0
 	player.position = Vector3(0, 0.3, 34)
 	cam.current = true
-	cam.global_position = spot + Vector3(4.5, 1.8, 6.0); cam.look_at(spot + Vector3(0, 1.0, 0))
+	cam.global_position = spot + Vector3(1.5, 1.7, 8.0); cam.look_at(spot + Vector3(0, 1.0, 0))
 	for i in 270: await get_tree().process_frame
 	await _shot(out, "46_soir_agression_theo", report)
 
@@ -238,6 +238,7 @@ func _simulate_life() -> void:
 	var out := ProjectSettings.globalize_path("res://").path_join("../captures")
 	DirAccess.make_dir_recursive_absolute(out)
 	life.minute = 5 * 60
+	player.position = Vector3(0, -500, 0)       # personne ne regarde : trajets hors de vue
 	life.warp()
 	life.minutes_per_second = 20.0           # 1 minute de jeu = 3 images à 60 i/s
 	var res := {"etapes": [], "bloques": []}
