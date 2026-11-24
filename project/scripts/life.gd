@@ -267,7 +267,7 @@ func nearest_npc(pos: Vector3, max_d := 3.0) -> Npc:
 
 func talk(n: Npc) -> Dictionary:
 	var m: Dictionary = mem[n.id]
-	var first := not m.rencontre
+	var first: bool = not m.rencontre
 	m.rencontre = true; m.discussions = int(m.discussions) + 1
 	n.react("Idle_Talking_Loop", 6.0, player.global_position if player else Vector3.ZERO)
 	var h := hour()

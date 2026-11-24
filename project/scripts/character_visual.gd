@@ -77,7 +77,7 @@ func _materials(mi: MeshInstance3D) -> void:
 func _hair(style: String, col) -> void:
 	var ps: PackedScene = load(BASE + style + ".gltf")
 	if ps == null: return
-	var h := ps.instantiate()
+	var h := ps.instantiate() as Node3D
 	var bi := skeleton.find_bone("Head")
 	if bi < 0: return
 	var att := BoneAttachment3D.new()
@@ -112,7 +112,7 @@ func set_weapon(kind: String) -> void:
 	var att := BoneAttachment3D.new()
 	att.bone_name = "hand_r"
 	skeleton.add_child(att)
-	var w := ps.instantiate()
+	var w := ps.instantiate() as Node3D
 	att.add_child(w)
 	var mat := StandardMaterial3D.new()
 	mat.albedo_texture = load("res://assets/human/HumanAnimations_ColorPalette.png")

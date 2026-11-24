@@ -10,7 +10,7 @@ var ui: CanvasLayer
 var stats: Label
 var env: Environment
 var sun: DirectionalLight3D
-var life: Node
+var life
 
 func _ready() -> void:
 	_environment()
@@ -228,7 +228,7 @@ func _simulate_life() -> void:
 	var last := {}
 	var still := {}
 	var t := 0.0
-	while not (life.day == 2 and life.minute >= 5 * 60):
+	while not (life.day == 2 and life.minute >= 5 * 60) and t < 240.0:
 		await get_tree().process_frame
 		t += 1.0 / 60.0
 		if life.minute % 60 == 0 and int(t * 60) % 3 == 0:
