@@ -45,3 +45,10 @@ lights_and_shadows/positional_shadow/atlas_size=1024
 reflections/sky_reflections/roughness_layers=6
 reflections/sky_reflections/ggx_samples.mobile=16
 environment/defaults/default_clear_color=Color(0.6, 0.7, 0.85, 1)
+
+[shader_globals]
+
+nuit={
+"type": "float",
+"value": 0.0
+}

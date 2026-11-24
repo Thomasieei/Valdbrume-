@@ -13,6 +13,10 @@ var anim: AnimationPlayer
 var skeleton: Skeleton3D
 var current := ""
 var weapon: Node3D
+var weapon_mesh: Node3D        # le modèle de l'arme (pour la traînée)
+var extras: Array = []         # carquois, arme dans le dos, aura…
+var cloth_mats := {}           # vêtement -> matériau (pour changer de tenue)
+static var _palette_mat: StandardMaterial3D
 
 static func cast_data() -> Dictionary:
 	if _cast.is_empty():
@@ -73,6 +77,7 @@ func _materials(mi: MeshInstance3D) -> void:
 			for k in ["xmax", "ymin", "ymax", "zmin", "open_w", "open_y", "belt"]:
 				if c.has(k): m3.set_shader_parameter(k, float(c[k]))
 			mi.set_surface_override_material(i, m3)
+			cloth_mats[kind] = m3
 
 func _hair(style: String, col) -> void:
 	var ps: PackedScene = load(BASE + style + ".gltf")
@@ -105,20 +110,89 @@ func play(n: String, blend := -1.0, speed := 1.0, restart := false) -> void:
 
 func length(n: String) -> float: return AnimBank.length(n)
 
-func set_weapon(kind: String) -> void:
-	if weapon: weapon.queue_free(); weapon = null
-	if kind != "epee": return
-	var ps: PackedScene = load("res://assets/characters/props/Human_Sword.fbx")
+## armes : réglage de la prise en main (os, rotation, décalage) pour chaque modèle
+const ARMES := {
+	"epee": ["Human_Sword", "hand_r", Vector3(0, 0, -90), Vector3(0.0, 0.08, 0.02)],
+	"epee_lourde": ["Human_Greatsword", "hand_r", Vector3(0, 0, -90), Vector3(0.0, 0.08, 0.02)],
+	"dague": ["Human_Dagger", "hand_r", Vector3(0, 0, -90), Vector3(0.0, 0.08, 0.02)],
+	"arc": ["HumanArcher_Bow", "hand_l", Vector3(0, 0, 90), Vector3(0.0, 0.08, -0.02)],
+}
+## dans le dos (rangée) : sur la colonne, en diagonale
+const DOS := {
+	"epee_lourde": [Vector3(0, 90, 145), Vector3(0.0, 0.05, -0.2)],
+	"epee": [Vector3(0, 90, 145), Vector3(0.0, 0.05, -0.18)],
+	"carquois": [Vector3(0, 90, 160), Vector3(0.05, 0.0, -0.17)],
+}
+
+static func palette_mat() -> StandardMaterial3D:
+	if _palette_mat == null:
+		_palette_mat = StandardMaterial3D.new()
+		_palette_mat.albedo_texture = load("res://assets/human/HumanAnimations_ColorPalette.png")
+		_palette_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
+		_palette_mat.metallic = 0.6; _palette_mat.roughness = 0.35
+	return _palette_mat
+
+func _prop(fichier: String, bone: String, rot: Vector3, pos: Vector3) -> Node3D:
+	var ps: PackedScene = load("res://assets/characters/props/%s.fbx" % fichier)
 	var att := BoneAttachment3D.new()
-	att.bone_name = "hand_r"
+	att.bone_name = bone
 	skeleton.add_child(att)
 	var w := ps.instantiate() as Node3D
 	att.add_child(w)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_texture = load("res://assets/human/HumanAnimations_ColorPalette.png")
-	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
-	mat.metallic = 0.6; mat.roughness = 0.35
-	for m in w.find_children("*", "MeshInstance3D", true, false): m.material_override = mat
-	w.rotation_degrees = Vector3(0, 0, -90)
-	w.position = Vector3(0.0, 0.08, 0.02)
-	weapon = att
+	for m in w.find_children("*", "MeshInstance3D", true, false):
+		m.material_override = palette_mat()
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	w.rotation_degrees = rot
+	w.position = pos
+	return att
+
+func set_weapon(kind: String) -> void:
+	if weapon: weapon.queue_free(); weapon = null; weapon_mesh = null
+	for e in extras:
+		if is_instance_valid(e): e.queue_free()
+	extras.clear()
+	if kind == "arc":
+		extras.append(_prop("HumanArcher_Quiver", "spine_03", DOS.carquois[0], DOS.carquois[1]))
+	if kind == "magie":
+		# l'énergie du chasseur au creux de la main
+		var att := BoneAttachment3D.new(); att.bone_name = "hand_r"; skeleton.add_child(att)
+		var f := Fx.spawn(att, "Mystic", "02", Transform3D(Basis(), Vector3(0.0, 0.1, 0.0)), 0.07, -1.0)
+		var l := OmniLight3D.new(); l.light_color = Fx.TEINTE.Mystic; l.light_energy = 0.9; l.omni_range = 2.2
+		att.add_child(l); extras.append(att)
+		return
+	if not ARMES.has(kind): return
+	var a: Array = ARMES[kind]
+	weapon = _prop(a[0], a[1], a[2], a[3])
+	weapon_mesh = weapon.get_child(0)
+
+## arme rangée dans le dos (habitants devenus chasseurs)
+func set_back_weapon(kind: String) -> void:
+	var a: Array = ARMES[kind]
+	extras.append(_prop(a[0], "spine_03", DOS[kind][0], DOS[kind][1]))
+
+## garde et pointe de l'arme dans son propre repère (axe le plus long du modèle)
+func weapon_axis() -> Array:
+	var box := AABB()
+	var first := true
+	for m in weapon_mesh.find_children("*", "MeshInstance3D", true, false):
+		var xf: Transform3D = weapon_mesh.global_transform.affine_inverse() * m.global_transform
+		var b: AABB = xf * m.get_aabb()
+		box = b if first else box.merge(b); first = false
+	var ax := box.get_longest_axis_index()
+	var lo := box.position[ax]; var hi := box.end[ax]
+	var tip := hi if absf(hi) > absf(lo) else lo
+	var grip := lo if tip == hi else hi
+	var a := box.get_center(); var b2 := box.get_center()
+	a[ax] = lerpf(grip, tip, 0.28); b2[ax] = tip
+	return [a, b2]
+
+## tenue de chasseur : combinaison sombre à liserés lumineux, bottes de cuir
+func hunter_look(accent: Color) -> void:
+	var specs := {"haut": [Color(0.07, 0.08, 0.11), 5, 6], "bas": [Color(0.06, 0.06, 0.08), 2, 0], "pieds": [Color(0.05, 0.045, 0.04), 2, 7]}
+	for k in specs:
+		if cloth_mats.has(k):
+			var m: ShaderMaterial = cloth_mats[k]
+			m.set_shader_parameter("color", specs[k][0])
+			m.set_shader_parameter("accent", accent)
+			m.set_shader_parameter("fabric", specs[k][1])
+			if specs[k][2] > 0: m.set_shader_parameter("style", specs[k][2])

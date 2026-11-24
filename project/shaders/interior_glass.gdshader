@@ -3,6 +3,7 @@ shader_type spatial;
 render_mode cull_back;
 #include "res://shaders/interior.gdshaderinc"
 uniform float lit_energy = 0.55;
+global uniform float nuit;           // 0 = jour, 1 = nuit noire
 varying vec3 wpos;
 void vertex() { wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 void fragment() {
@@ -12,7 +13,7 @@ void fragment() {
 	vec3 vts = vec3(dot(v, right), v.y, dot(v, n));
 	vec3 room = fake_room(UV, vts, COLOR.rgb);
 	ALBEDO = vec3(0.02);
-	EMISSION = room * (COLOR.g > 0.5 ? lit_energy : lit_energy * 0.6);
+	EMISSION = room * (COLOR.g > 0.5 ? lit_energy * (1.0 + 2.6 * nuit) : lit_energy * 0.6 * (1.0 - 0.75 * nuit));
 	ROUGHNESS = 0.06;
 	METALLIC = 0.0;
 	SPECULAR = 0.6;

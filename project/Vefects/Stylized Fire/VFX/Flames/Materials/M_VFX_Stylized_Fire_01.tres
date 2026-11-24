@@ -1,0 +1,60 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://8p18cq23n4v7"]
+
+[ext_resource type="Shader" uid="uid://6qw36y4up44r" path="res://Vefects/Stylized Fire/Shared/Shaders/SH_Vefects_VFX_Stylized_Fire_01.gdshader" id="1_309cd"]
+[ext_resource type="Texture2D" uid="uid://d15nwp8srxcpr" path="res://Vefects/Stylized Fire/VFX/Shared/Textures/T_VFX_Stylized_Fire_Swirls_Packed_01_HD.tga" id="2_837fe"]
+[ext_resource type="Texture2D" uid="uid://de30n1s3pp8a0" path="res://Vefects/Stylized Fire/VFX/Shared/Textures/T_VFX_Perlin_01.tga" id="3_18a24"]
+[ext_resource type="Texture2D" uid="uid://r8d0tdtjp073" path="res://Vefects/Stylized Fire/VFX/Shared/Textures/T_VFX_Perlin_01_N.tga" id="4_d8b39"]
+[ext_resource type="Texture2D" uid="uid://ctl5gnubdn5iw" path="res://Vefects/Stylized Fire/VFX/Shared/Textures/T_VFX_Stylized_Fire_Masks_Packed_01.tga" id="5_b07c7"]
+[ext_resource type="Texture2D" uid="uid://ca13jxe63eb0d" path="res://Vefects/Stylized Fire/VFX/Shared/Textures/LUTs/T_VFX_LUT_Fire_02.tga" id="6_96a5c"]
+
+[resource]
+shader = ExtResource("1_309cd")
+shader_parameter/clevendercom_learn_vfx_now = 777
+shader_parameter/emissive = 5
+shader_parameter/overall_scale = 1
+shader_parameter/overall_speed = 1
+shader_parameter/noises_tile_vertical = 1
+shader_parameter/noises_tile_horizontal = 1
+shader_parameter/enable_random_rotation = 0
+shader_parameter/erosion = 0
+shader_parameter/erosion_smoothness = 1
+shader_parameter/noises_texture = ExtResource("2_837fe")
+shader_parameter/noises_texture_sampling = Vector3i(0, 0, 0)
+shader_parameter/noises01_selector = Vector4(1, 0, 0, 0)
+shader_parameter/noises01_scale = Vector4(1.333, 1.5, 0, 0)
+shader_parameter/noises01_speed = Vector4(-0.1, -1.3, 0, 0)
+shader_parameter/noises_texture_secondary = ExtResource("3_18a24")
+shader_parameter/noises_texture_secondary_sampling = Vector3i(0, 0, 0)
+shader_parameter/noises02_selector = Vector4(0, 0.5, 0, 0)
+shader_parameter/noises02_scale = Vector4(1, 0.7, 0, 0)
+shader_parameter/noises02_speed = Vector4(-0.1, -1.3, 0, 0)
+shader_parameter/noises_texture_tertiary = ExtResource("4_d8b39")
+shader_parameter/noises_texture_tertiary_sampling = Vector3i(0, 0, 1)
+shader_parameter/noises03_scale = Vector4(0.5, 1, 0, 0)
+shader_parameter/noises03_speed = Vector4(0.067, -0.67, 0, 0)
+shader_parameter/masks_texture = ExtResource("5_b07c7")
+shader_parameter/masks_texture_sampling = Vector3i(1, 1, 0)
+shader_parameter/masks_texture_st = Vector4(1, 1, 0, 0)
+shader_parameter/distortion_intensity = 1
+shader_parameter/distortion_vertical = -1
+shader_parameter/distortion_horizontal = 0
+shader_parameter/distortion_mask_ero = 0
+shader_parameter/distortion_mask_ero_smoothness = 1
+shader_parameter/noises_tertiary_distortion_intensity = 0.3
+shader_parameter/camera_depth_fade_length = 0.3
+shader_parameter/camera_depth_fade_offset = 0
+shader_parameter/lut = ExtResource("6_96a5c")
+shader_parameter/lut_sampling = Vector3i(1, 1, 1)
+shader_parameter/lut_offset = 0
+shader_parameter/lut_speed = 0
+shader_parameter/lut_amplitude = 1
+shader_parameter/lut_erosion = 0
+shader_parameter/lut_erosion_smoothness = 1
+shader_parameter/hue_shift = 0
+shader_parameter/desaturate = 0
+shader_parameter/depth_fade = 1
+shader_parameter/fresnel_intensity = 1
+shader_parameter/fresnel_bias = 0
+shader_parameter/fresnel_scale = 1
+shader_parameter/fresnel_power = 3
+shader_parameter/camera_offset = -3

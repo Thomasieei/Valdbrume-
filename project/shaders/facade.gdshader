@@ -10,6 +10,7 @@ uniform sampler2D atlas_nc : filter_linear_mipmap;
 uniform sampler2D atlas_room : filter_linear_mipmap;
 uniform vec3 palette[16];
 uniform float lit_energy = 0.7;
+global uniform float nuit;
 uniform vec2 relief_scale = vec2(0.0546, 0.09);   // pixels/m / taille de l'atlas
 varying vec3 wpos;
 void vertex() { wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
@@ -47,7 +48,7 @@ void fragment() {
 		vec3 p = vec3(fract(h * 7.0), step(0.38, h), fract(h * 13.0) < 0.45 ? 0.0 : fract(h * 31.0));
 		vec2 ruv = texture(atlas_room, uv).rg;
 		vec3 room = fake_room(ruv, vts, p);
-		EMISSION = room * glass * (p.y > 0.5 ? lit_energy : lit_energy * 0.6);
+		EMISSION = room * glass * (p.y > 0.5 ? lit_energy * (1.0 + 2.6 * nuit) : lit_energy * 0.6 * (1.0 - 0.75 * nuit));
 		col = mix(col, vec3(0.02), glass);
 	}
 	ALBEDO = col;

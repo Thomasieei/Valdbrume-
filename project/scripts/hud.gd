@@ -17,6 +17,14 @@ var toast_t := 0.0
 var dialog: PanelContainer
 var dialog_text: Label
 var talk_target = null
+var quests: Node
+var q_title: Label
+var q_text: Label
+var big: Label               # annonce de quête (centre haut)
+var big_sub: Label
+var big_t := 0.0
+var marker: MeshInstance3D   # colonne de lumière sur l'objectif
+var obj = null
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -36,6 +44,36 @@ func _ready() -> void:
 	dialog_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	dialog_text.add_theme_font_size_override("font_size", 24)
 	player.action_text.connect(func(t): show_toast(t))
+	q_title = _lab(22, Color(1.0, 0.82, 0.45)); q_text = _lab(19, Color(1, 1, 1, 0.95))
+	q_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	big = _lab(34, Color(1.0, 0.85, 0.5)); big_sub = _lab(22, Color(1, 1, 1))
+	big.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; big_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	big_sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if quests: quests.annonce.connect(_annonce)
+	marker = MeshInstance3D.new()
+	var cm := CylinderMesh.new(); cm.top_radius = 0.18; cm.bottom_radius = 0.18; cm.height = 60.0; cm.radial_segments = 8; cm.rings = 1
+	marker.mesh = cm
+	var mm := StandardMaterial3D.new()
+	mm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mm.albedo_color = Color(1.0, 0.75, 0.3, 0.35)
+	mm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mm.no_depth_test = false
+	marker.material_override = mm
+	marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	marker.visible = false
+	player.get_parent().add_child.call_deferred(marker)
+
+func _lab(fs: int, col: Color) -> Label:
+	var l := Label.new(); add_child(l)
+	l.add_theme_font_size_override("font_size", fs)
+	l.add_theme_color_override("font_color", col)
+	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9)); l.add_theme_constant_override("outline_size", 7)
+	return l
+
+func _annonce(titre: String, texte: String) -> void:
+	big.text = titre; big_sub.text = texte; big_t = 5.0
 
 func show_toast(t: String) -> void:
 	toast.text = t; toast_t = 2.5
@@ -53,6 +91,10 @@ func _layout() -> void:
 	if talk_target != null: buttons["parler"] = [Vector2(w.x * 0.5, w.y - 120), 64, "PARLER"]
 	clock.position = Vector2(w.x - 240, 14)
 	toast.position = Vector2(w.x * 0.5 - 120, 70)
+	q_title.position = Vector2(22, 62); q_text.position = Vector2(22, 92)
+	q_text.size = Vector2(min(430.0, w.x * 0.36), 0)
+	big.position = Vector2(w.x * 0.15, w.y * 0.16); big.size = Vector2(w.x * 0.7, 0)
+	big_sub.position = Vector2(w.x * 0.2, w.y * 0.16 + 48); big_sub.size = Vector2(w.x * 0.6, 0)
 	dialog.position = Vector2(w.x * 0.18, w.y * 0.58)
 	dialog.size = Vector2(w.x * 0.64, 0)
 	dialog_text.custom_minimum_size = Vector2(w.x * 0.6, 0)
@@ -60,6 +102,22 @@ func _layout() -> void:
 func _process(dt: float) -> void:
 	clock.text = life.clock_text()
 	toast_t -= dt; toast.visible = toast_t > 0.0
+	big_t -= dt
+	big.visible = big_t > 0.0; big_sub.visible = big.visible
+	var a := clampf(big_t, 0.0, 1.0)
+	big.modulate.a = a; big_sub.modulate.a = a
+	# quête suivie
+	obj = quests.objectif() if quests else null
+	if quests and quests.suivie != "":
+		q_title.text = "◆ " + quests.QUETES[quests.suivie].titre
+		var dist := "" if obj == null else "  · %d m" % int(player.global_position.distance_to(obj))
+		q_text.text = quests.texte(quests.suivie) + dist
+		q_title.visible = true; q_text.visible = true
+	else:
+		q_title.visible = false; q_text.visible = false
+	if marker.is_inside_tree():
+		marker.visible = obj != null and player.global_position.distance_to(obj) > 4.0
+		if marker.visible: marker.global_position = obj + Vector3(0, 30.0, 0)
 	var n = life.nearest_npc(player.global_position, 3.2)
 	if n != talk_target:
 		talk_target = n
@@ -120,6 +178,33 @@ func _input(e: InputEvent) -> void:
 
 func _draw() -> void:
 	var font := ThemeDB.fallback_font
+	var w := get_viewport_rect().size
+	# voile rouge quand le héros est touché
+	if player.hurt_flash > 0.0:
+		var c := Color(0.8, 0.05, 0.05, 0.28 * player.hurt_flash)
+		draw_rect(Rect2(0, 0, w.x, 26), c); draw_rect(Rect2(0, w.y - 26, w.x, 26), c)
+		draw_rect(Rect2(0, 0, 26, w.y), c); draw_rect(Rect2(w.x - 26, 0, 26, w.y), c)
+	# points de vie
+	var hp: float = player.pv / player.pv_max
+	draw_rect(Rect2(22, 22, 300, 18), Color(0, 0, 0, 0.55))
+	draw_rect(Rect2(24, 24, 296 * hp, 14), Color(0.85, 0.18, 0.2).lerp(Color(0.35, 0.85, 0.45), hp * hp))
+	draw_string(font, Vector2(330, 38), "%d / %d" % [int(player.pv), int(player.pv_max)], HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color(1, 1, 1, 0.9))
+	# flèche vers l'objectif hors de l'écran
+	var cam := get_viewport().get_camera_3d()
+	if obj != null and cam:
+		var target: Vector3 = obj + Vector3(0, 1.2, 0)
+		var behind := cam.is_position_behind(target)
+		var sp := cam.unproject_position(target)
+		if behind: sp = w - sp
+		var inside := not behind and Rect2(Vector2(40, 40), w - Vector2(80, 80)).has_point(sp)
+		if inside:
+			draw_circle(sp, 9, Color(1.0, 0.78, 0.35, 0.9)); draw_arc(sp, 15, 0, TAU, 24, Color(1, 0.78, 0.35, 0.7), 2.0, true)
+		else:
+			var c2 := w * 0.5
+			var dir := (sp - c2).normalized()
+			var edge := c2 + dir * minf((w.x * 0.5 - 50) / maxf(absf(dir.x), 0.001), (w.y * 0.5 - 50) / maxf(absf(dir.y), 0.001))
+			var pts := PackedVector2Array([edge + dir * 22, edge + dir.orthogonal() * 13 - dir * 6, edge - dir.orthogonal() * 13 - dir * 6])
+			draw_colored_polygon(pts, Color(1.0, 0.78, 0.35, 0.92))
 	for k in buttons:
 		var c: Vector2 = buttons[k][0]; var r: float = buttons[k][1]
 		draw_circle(c, r, Color(0.05, 0.05, 0.07, 0.35) if k != "parler" else Color(0.75, 0.55, 0.2, 0.55))

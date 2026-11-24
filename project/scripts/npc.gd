@@ -18,6 +18,14 @@ var talk_cd := 0.0
 var face_target := Vector3.ZERO
 var hidden_inside := false
 var lod_t := 0.0
+# chasseurs : combattent aux côtés du joueur quand un portail se brise
+var chasseur := false
+var combat := false
+var cd_combat := 0.0
+var vivant := true
+var rayon := 0.35
+var hauteur := 1.8
+var _arme_en_main := false
 
 func setup(p_id: String, p_life: Node, start: Vector3) -> void:
 	id = p_id; life = p_life
@@ -63,8 +71,64 @@ func react(anim_name: String, duration: float, look_at_pos := Vector3.ZERO) -> v
 	if look_at_pos != Vector3.ZERO: face_target = look_at_pos
 	vis.play(anim_name, 0.2, 1.0, true)
 
+## l'habitant s'est éveillé : tenue de chasseur, épée longue dans le dos
+func devient_chasseur(accent := Color(0.25, 0.6, 1.0)) -> void:
+	if chasseur: return
+	chasseur = true
+	vis.hunter_look(accent)
+	vis.set_back_weapon("epee_lourde")
+	add_to_group("combattants")
+	label.text = "%s\nchasseur · rang E" % vis.data.nom
+
+func blesse(_dmg: float, from: Vector3) -> void:
+	if busy_t > 0.0 and busy_anim.begins_with("Hit"): return
+	react(["Hit_Chest", "Hit_Shoulder_L"][randi() % 2], 0.45, from)
+
+func entre_en_combat(v: bool) -> void:
+	combat = v
+	if v and not _arme_en_main:
+		_arme_en_main = true
+		vis.set_weapon("epee_lourde")
+	elif not v and _arme_en_main:
+		_arme_en_main = false
+		vis.set_weapon("")
+		vis.set_back_weapon("epee_lourde")
+
+func _combat(dt: float) -> void:
+	cd_combat -= dt
+	var best = null; var bd := 40.0
+	for e in get_tree().get_nodes_in_group("ennemis"):
+		var dd: float = global_position.distance_to(e.global_position)
+		if dd < bd: bd = dd; best = e
+	if best == null:
+		vis.play("Sword_Idle", 0.25)
+		return
+	var to: Vector3 = best.global_position - global_position; to.y = 0
+	vis.rotation.y = lerp_angle(vis.rotation.y, atan2(to.x, to.z), 1.0 - exp(-10.0 * dt))
+	if to.length() > 2.1 + float(best.rayon):
+		position += to.normalized() * 4.6 * dt
+		vis.play("Sprint_Loop", 0.2)
+	elif cd_combat <= 0.0:
+		cd_combat = 1.15
+		var a: String = ["Sword_Heavy_A", "Sword_Light_B", "Sword_Heavy_C", "Sword_Light_A"][randi() % 4]
+		vis.play(a, 0.08, 1.1, true)
+		get_tree().create_timer(0.42).timeout.connect(_frappe.bind(best))
+	elif cd_combat < 0.6:
+		vis.play("Sword_Idle", 0.2)
+
+func _frappe(tgt) -> void:
+	if not is_instance_valid(tgt) or not tgt.vivant: return
+	if global_position.distance_to(tgt.global_position) > 3.4 + float(tgt.rayon): return
+	tgt.touche(14.0, global_position)
+	var p: Vector3 = tgt.global_position + Vector3(0, float(tgt.hauteur) * 0.5, 0)
+	Fx.spawn(get_parent(), "Electric", "Radial_01", Transform3D(Basis(), p), 0.14, 1.2)
+	Fx.nombre(get_parent(), p + Vector3(0, 0.5, 0), 14.0, false, Color(0.7, 0.85, 1.0))
+
 func _process(dt: float) -> void:
 	if hidden_inside: return
+	if combat and busy_t <= 0.0:
+		_combat(dt)
+		return
 	var gdt: float = dt * life.minutes_per_second / 0.5     # durées exprimées au rythme normal
 	talk_cd = max(talk_cd - gdt, 0.0)
 	# économie : animations moins fréquentes quand le personnage est loin

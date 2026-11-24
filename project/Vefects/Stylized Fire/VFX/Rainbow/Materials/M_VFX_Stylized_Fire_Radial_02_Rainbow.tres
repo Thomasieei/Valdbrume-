@@ -1,0 +1,51 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://cniy2gb47x1sr"]
+
+[ext_resource type="Shader" uid="uid://brbdmfgig7hpu" path="res://Vefects/Stylized Fire/Shared/Shaders/SH_Vefects_VFX_Stylized_Fire_Radial_01.gdshader" id="1_164f8"]
+
+[resource]
+shader = ExtResource("1_164f8")
+shader_parameter/clevendercom_learn_vfx_now = 777
+shader_parameter/emissive = 10
+shader_parameter/overall_uv_scale = 1
+shader_parameter/overall_speed = 1
+shader_parameter/noises_tile_vertical = 1
+shader_parameter/noises_tile_horizontal = 1
+shader_parameter/enable_random_rotation = 0
+shader_parameter/erosion = 0
+shader_parameter/erosion_smoothness = 1
+shader_parameter/noises01_selector = Vector4(0, 1, 0, 0)
+shader_parameter/noises01_scale = Vector4(1, 1, 0, 0)
+shader_parameter/noises01_speed = Vector4(-0.3, 0.01, 0, 0)
+shader_parameter/noises02_selector = Vector4(1, 0, 0, 0)
+shader_parameter/noises02_scale = Vector4(1, 1, 0, 0)
+shader_parameter/noises02_speed = Vector4(-0.115, 0.01, 0, 0)
+shader_parameter/noises03_scale = Vector4(1, 1, 0, 0)
+shader_parameter/noises03_speed = Vector4(-0.2, -0.01, 0, 0)
+shader_parameter/noises03_distort_intensity = 1
+shader_parameter/radial_distort_mask_size = 0
+shader_parameter/radial_distort_mask_sharpness = 1
+shader_parameter/radial_distortion_mask_ero = 0
+shader_parameter/radial_distortion_mask_ero_smo = 0.5
+shader_parameter/twist_intensity = 0
+shader_parameter/polar_coordinates_radial_scale = 0.5
+shader_parameter/polar_coordinates_length_scale = 1
+shader_parameter/polar_coordinates_pan_speed = Vector4(0, 0, 0, 0)
+shader_parameter/mask_erosion = 0.8
+shader_parameter/mask_erosion_smoothness = 0.2
+shader_parameter/distortion_intensity = 1
+shader_parameter/camera_depth_fade_length = 0.333
+shader_parameter/camera_depth_fade_offset = 0
+shader_parameter/lut_offset = 0
+shader_parameter/lut_speed = 1
+shader_parameter/lut_amplitude = 1
+shader_parameter/lut_erosion = 0
+shader_parameter/lut_erosion_smoothness = 1
+shader_parameter/hue_shift = 0
+shader_parameter/desaturate = 0
+shader_parameter/depth_fade = 0.1
+shader_parameter/fresnel_intensity = 1
+shader_parameter/fresnel_bias = 0
+shader_parameter/fresnel_scale = 1
+shader_parameter/fresnel_power = 5
+shader_parameter/camera_offset = 0
+shader_parameter/distortion_inversion = -1

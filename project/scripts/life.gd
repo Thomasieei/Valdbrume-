@@ -4,6 +4,8 @@
 extends Node
 
 signal changed
+signal parle(id: String)
+var quetes: Node = null
 const SAVE := "user://vie.json"
 var minutes_per_second := 0.5          # 1 journée = 48 minutes réelles
 var day := 1
@@ -121,6 +123,7 @@ func _tick_minute() -> void:
 
 func _send(id: String, e: Array) -> void:
 	var n: Npc = npcs[id]
+	if n.combat: return
 	var dest: String = e[1]
 	if dest == "@patrouille": dest = PATROL[(minute / 20) % PATROL.size()]
 	var from := astar.get_closest_point(n.global_position)
@@ -210,6 +213,7 @@ func _new_day() -> void:
 	h.entrainements = int(h.get("entrainements", 0)) + 1
 	if h.entrainements >= 5 and not "chasseur novice" in h.souvenirs:
 		h.souvenirs.append("chasseur novice"); _note("Hugo a réussi l'examen de chasseur (rang E).")
+		npcs.hugo.devient_chasseur()
 	_save()
 
 func _start_agression() -> void:
@@ -232,7 +236,7 @@ func _tick_agression(dt: float) -> void:
 	agression.t += dt
 	var theo: Npc = npcs.theo
 	var spot := _place_pos("passage_lanternes")
-	var near_player := player != null and player.global_position.distance_to(spot) < 30.0
+	var near_player := player != null and player.global_position.distance_to(theo.global_position) < 14.0
 	match agression.etat:
 		"attente":
 			if not theo.hidden_inside and theo.global_position.distance_to(spot) < 7.0:
@@ -248,11 +252,12 @@ func _tick_agression(dt: float) -> void:
 				if to.length() > 1.4: t.position += Vector3(to.x, 0, to.z).normalized() * 1.2 * dt; t.get_child(0).play("Walk_Loop", 0.2)
 				t.get_child(0).rotation.y = atan2(to.x, to.z)
 			if near_player:
-				agression.etat = "fuite"; agression.t = 0.0
-				for t in thugs: t.get_child(0).play("Sprint_Loop", 0.15)
-				theo.react("Idle_Tired_Loop", 4.0, player.global_position)
-				_souvenir("theo", "sauvé par le joueur", 3)
-				_note("Les voyous s'enfuient en vous voyant arriver. Théo est sauf.")
+				agression.etat = "face"; agression.t = 0.0
+				for t in thugs:
+					t.get_child(0).play("Idle_No_Loop", 0.2)
+					var tp: Vector3 = player.global_position - t.global_position
+					t.get_child(0).rotation.y = atan2(tp.x, tp.z)
+				_note("Les voyous se retournent vers vous.")
 			elif agression.t > 4.0 and agression.t < 4.1:
 				thugs[0].get_child(0).play("Punch_Cross", 0.1, 1.0, true)
 				theo.react("Hit_Stomach", 1.5)
@@ -263,6 +268,17 @@ func _tick_agression(dt: float) -> void:
 				_souvenir("theo", "agressé dans le passage", -1)
 				mem.theo.souvenirs.append("veut apprendre à se défendre")
 				_note("Théo a été agressé. Personne n'est venu l'aider.")
+		"face":
+			# un chasseur les toise : ils hésitent, puis détalent
+			for t in thugs:
+				var tp2: Vector3 = player.global_position - t.global_position
+				t.get_child(0).rotation.y = lerp_angle(t.get_child(0).rotation.y, atan2(tp2.x, tp2.z), 0.2)
+			if agression.t > 2.2 or player.global_position.distance_to(thugs[0].global_position) < 4.0:
+				agression.etat = "fuite"; agression.t = 0.0
+				for t in thugs: t.get_child(0).play("Sprint_Loop", 0.15)
+				theo.react("Idle_Tired_Loop", 4.0, player.global_position)
+				_souvenir("theo", "sauvé par le joueur", 3)
+				_note("Les voyous s'enfuient devant le chasseur. Théo est sauf.")
 		"fuite":
 			for t in thugs:
 				t.position += Vector3(0, 0, -1) * 6.0 * dt
@@ -321,7 +337,11 @@ func talk(n: Npc) -> Dictionary:
 			t = "Lieutenante Kovač. Les chasseurs se croient au-dessus des lois. Pas dans ma ville." if first else "Si vous voyez la bande du Balafré dans le Vieux Quartier, appelez-moi."
 		"victor":
 			t = "Victor Lemaire, Valdbrume Gestion. Un chasseur de rang E ? Venez me voir quand vous serez quelqu'un."
+	if quetes:
+		var o: String = quetes.replique(n.id)
+		if o != "": t = o
 	_save()
+	parle.emit(n.id)
 	return {"nom": n.vis.data.nom, "role": n.vis.data.role, "texte": t, "relation": m.relation}
 
 # ------------------------------------------------------------ sauvegarde

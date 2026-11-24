@@ -11,6 +11,8 @@ var stats: Label
 var env: Environment
 var sun: DirectionalLight3D
 var life
+var quests: Node
+var day: Node
 
 func _ready() -> void:
 	_environment()
@@ -29,15 +31,28 @@ func _ready() -> void:
 	life.set_script(load("res://scripts/life.gd"))
 	add_child(life)
 	life.setup(city.meta, player)
+	quests = Node.new(); quests.name = "Quetes"
+	quests.set_script(load("res://scripts/quests.gd"))
+	add_child(quests)
+	quests.setup(life, player)
+	life.quetes = quests
+	day = Node.new(); day.name = "Cycle"
+	day.set_script(load("res://scripts/daycycle.gd"))
+	day.life = life; day.env = env; day.sun = sun; day.sky = env.sky.sky_material
+	add_child(day)
+	day.apply(life.hour())
+	player.ko.connect(_ko)
+	Fx.prewarm(self, player.cam)
 	ui = CanvasLayer.new()
 	add_child(ui)
 	var tc := Control.new()
 	tc.set_script(load("res://scripts/hud.gd"))
 	tc.player = player
 	tc.life = life
+	tc.quests = quests
 	ui.add_child(tc)
 	stats = Label.new()
-	stats.position = Vector2(16, 10)
+	stats.position = Vector2(480, 16)
 	stats.add_theme_font_size_override("font_size", 18)
 	stats.add_theme_color_override("font_outline_color", Color.BLACK)
 	stats.add_theme_constant_override("outline_size", 4)
@@ -47,6 +62,13 @@ func _ready() -> void:
 	elif "--traverse" in args: _traverse.call_deferred()
 	elif "--vie" in args: _simulate_life.call_deferred()
 	elif "--diag-anim" in args: _diag_anim.call_deferred()
+	elif "--combat" in args: _test_combat.call_deferred()
+
+## K.-O. : on se réveille à la pharmacie, soigné par Inès
+func _ko() -> void:
+	var p: Vector3 = life._place_pos("pharmacie")
+	player.revive(p + Vector3(0, 0.2, 2.0))
+	player.action_text.emit("Inès vous a soigné. « Encore un chasseur trop téméraire… »")
 
 func _environment() -> void:
 	var we := WorldEnvironment.new()
@@ -120,6 +142,7 @@ func _capture() -> void:
 	cam.far = 900.0
 	add_child(cam)
 	var report := []
+	day.force_hour = 16.5; day.apply(16.5)
 	await _wait(30)
 	for v in city.meta.views:
 		var eye := Vector3(v.eye[0], v.eye[1], v.eye[2])
@@ -186,7 +209,7 @@ func _capture_characters(cam: Camera3D, out: String, report: Array) -> void:
 	# le héros en action (pose figée au milieu de l'animation)
 	var hero := CharacterVisual.new(); add_child(hero); hero.setup("heros")
 	hero.position = Vector3(-22, 0, 36); hero.rotation.y = deg_to_rad(60)
-	var poses := [["Sprint_Loop", 0.3, ""], ["Sword_Heavy_B", 0.45, "epee"], ["Sword_Aerial_A", 0.4, "epee"], ["Spell_Double_Shoot_Loop", 0.5, ""], ["Roll", 0.4, ""], ["Melee_Uppercut", 0.5, ""], ["Bow_Shoot", 0.3, ""], ["Slide_Loop", 0.4, ""], ["NinjaJump_Double", 0.4, ""], ["WallRun_L_Loop", 0.4, ""]]
+	var poses := [["Sprint_Loop", 0.3, ""], ["Sword_Heavy_B", 0.45, "epee"], ["Sword_Aerial_A", 0.4, "epee"], ["Spell_Double_Shoot_Loop", 0.5, "magie"], ["Roll", 0.4, ""], ["Melee_Uppercut", 0.5, ""], ["Bow_Shoot", 0.3, "arc"], ["Bow_Aim_Neutral", 0.5, "arc"], ["Sword_Idle", 0.5, "epee_lourde"], ["Slide_Loop", 0.4, ""], ["NinjaJump_Double", 0.4, ""], ["WallRun_L_Loop", 0.4, ""]]
 	for po in poses:
 		hero.set_weapon(po[2])
 		hero.play(po[0], 0.0, 1.0, true)
@@ -211,6 +234,7 @@ func _capture_life(cam: Camera3D, out: String, report: Array) -> void:
 	for n in life.npcs.values(): n.place = ""
 	for s in shots:
 		life.minute = s[0]
+		day.force_hour = s[0] / 60.0; day.apply(day.force_hour)
 		life.warp()
 		await _wait(5)
 		var p: Dictionary = life.places[s[1]]
@@ -220,6 +244,7 @@ func _capture_life(cam: Camera3D, out: String, report: Array) -> void:
 		await _shot(out, s[3], report)
 	# l'agression du soir dans le Passage des Lanternes (le joueur est loin)
 	life.minute = 21 * 60
+	day.force_hour = 21.0; day.apply(21.0)
 	life.warp()
 	life._start_agression()
 	var spot: Vector3 = life._place_pos("passage_lanternes")
@@ -316,4 +341,172 @@ func _traverse() -> void:
 	var f := FileAccess.open(out.path_join("traversee.json"), FileAccess.WRITE)
 	f.store_string(JSON.stringify(res, "  "))
 	f.close()
+	get_tree().quit()
+
+# ------------------------------------------------------------------ test de combat et de quêtes
+## Joue réellement les quêtes : éveil de Hugo à l'entraînement, voyous du
+## Passage des Lanternes, portail de la gare (monstres, boss). Le héros est
+## piloté comme par un joueur ; captures à chaque moment fort, interface visible.
+func _face_to(p: Vector3) -> void:
+	var to := p - player.global_position
+	player.yaw = atan2(-to.x, -to.z)
+	player.pitch = -0.16
+
+func _go_near(p: Vector3, dist: float, max_t := 20.0) -> void:
+	var t := 0.0
+	while player.global_position.distance_to(p) > dist and t < max_t:
+		_face_to(p); player.move_input = Vector2(0, -1); player.sprint_held = true
+		await get_tree().physics_frame; t += 1.0 / 60.0
+	player.move_input = Vector2.ZERO; player.sprint_held = false
+
+func _set_style(s: String) -> void:
+	var guard := 0
+	while player.style() != s and guard < 5:
+		player.state = player.S.LOCO; player.next_style(); guard += 1
+
+func _test_combat() -> void:
+	var out := ProjectSettings.globalize_path("res://").path_join("../captures")
+	DirAccess.make_dir_recursive_absolute(out)
+	var rep := {}
+	var report := []
+	for k in quests.etat.keys(): quests.etat.erase(k)
+	# 1) entraînement avec Hugo à 18 h
+	life.minute = 18 * 60; life.warp(); day.force_hour = 18.0; day.apply(18.0)
+	var hugo: Npc = life.npcs.hugo
+	await _wait(10)
+	player.global_position = hugo.global_position + Vector3(3.0, 0.3, 2.0)
+	quests.donne("hugo")
+	await _wait(20)
+	_face_to(hugo.global_position + Vector3(4, 0, 0))
+	await _wait(10)
+	await _shot(out, "60_quete_hugo_entrainement", report)
+	_set_style("poings")
+	for i in 14:
+		player.attack(i % 3 == 2)
+		await _wait(32)
+	rep["hugo_chasseur"] = hugo.chasseur
+	rep["quete_hugo"] = quests.etat.hugo.duplicate()
+	await _wait(30)
+	player.cam.current = true
+	_face_to(hugo.global_position)
+	await _shot(out, "61_eveil_hugo", report)
+	# portrait de Hugo en chasseur
+	var cam := Camera3D.new(); add_child(cam); cam.fov = 50.0
+	cam.global_position = hugo.global_position + Vector3(1.6, 1.5, 1.4); cam.look_at(hugo.global_position + Vector3(0, 1.1, 0)); cam.current = true
+	await _shot(out, "62_hugo_tenue_chasseur", report)
+	hugo.vis.rotation.y += PI
+	await _shot(out, "63_hugo_epee_dans_le_dos", report)
+	player.cam.current = true
+	# 2) le Passage des Lanternes à 21 h
+	life.minute = 20 * 60 + 58; life.warp(); day.force_hour = 21.0; day.apply(21.0)
+	quests.donne("lanternes")
+	var spot: Vector3 = life._place_pos("passage_lanternes")
+	var theo: Npc = life.npcs.theo
+	life.minute = 21 * 60; life._start_agression()
+	theo.visible = true; theo.hidden_inside = false
+	theo.position = spot + Vector3(0, 0, 3.0)
+	theo.path = PackedVector3Array([spot + Vector3(0, 0, 1.0)]); theo.path_i = 0
+	player.global_position = spot + Vector3(0, 0.3, 40.0)
+	var g := 0
+	while life.agression.get("etat", "") != "menace" and g < 600: await _wait(1); g += 1
+	await _go_near(theo.global_position, 13.0)
+	await _wait(25)
+	_face_to(theo.global_position)
+	await _shot(out, "64_voyous_face_au_chasseur", report)
+	g = 0
+	while life.agression.get("etat", "") != "fuite" and g < 400: await _wait(1); g += 1
+	await _wait(40)
+	await _go_near(theo.global_position, 2.5)
+	var r: Dictionary = life.talk(theo)
+	rep["theo_dit"] = r.texte
+	rep["quete_lanternes"] = quests.etat.lanternes.duplicate()
+	# 3) le portail de la gare
+	life.minute = 21 * 60 + 30; life.warp(); day.force_hour = 21.6; day.apply(21.6)
+	for t in life.thugs: t.visible = false
+	life.agression.etat = "fini"
+	quests.donne("gare")
+	var gp: Vector3 = quests.GATE_POS
+	player.global_position = gp + Vector3(30, 0.3, 1.5)
+	_face_to(gp)
+	await _wait(30)
+	await _go_near(gp, 22.0)
+	g = 0
+	while (quests.portail == null or quests.portail.etat != "stable") and g < 600: await _wait(1); g += 1
+	_face_to(gp + Vector3(0, 2.5, 0))
+	player.pitch = -0.05
+	await _wait(20)
+	await _shot(out, "65_portail_nuit", report)
+	await _go_near(gp, 8.5)
+	_face_to(gp)
+	g = 0
+	while quests.monstres.size() < 3 and g < 900: await _wait(1); g += 1
+	await _wait(50)
+	player.global_position = gp + Vector3(11, 0.3, 0)
+	_face_to(gp)
+	await _wait(15)
+	await _shot(out, "66_portail_brise_monstres", report)
+	# combat piloté : magie, puis épée, puis arc
+	var game_t := 0.0
+	var shots := {"67_sort_en_vol": false, "68_impact_sort": false, "69_hugo_combat": false, "70_epee_trainee": false, "71_arc_tir": false, "72_brute": false}
+	var cnt := {"ko": 0}
+	player.ko.connect(func(): cnt.ko += 1)
+	var phase_t := 0.0
+	while quests.etat.gare.etape < 4 and game_t < 150.0:
+		await get_tree().physics_frame
+		phase_t += 1.0 / 60.0; game_t += 1.0 / 60.0
+		player.pv = max(player.pv, 60.0)       # le test vérifie le combat, pas la survie
+		var target = null; var bd := 1e9
+		for m in get_tree().get_nodes_in_group("ennemis"):
+			var d: float = m.global_position.distance_to(player.global_position)
+			if d < bd: bd = d; target = m
+		if target == null: continue
+		var etape: int = quests.etat.gare.etape
+		var want := "magie" if etape == 2 and phase_t < 14.0 else ("arc" if etape == 2 else "epee")
+		if player.style() != want and player.state == player.S.LOCO: _set_style(want)
+		var reach := 2.2 if want == "epee" else 12.0
+		_face_to(target.global_position)
+		if bd > reach + float(target.rayon):
+			player.move_input = Vector2(0, -1); player.sprint_held = want == "epee"
+		elif bd < 4.0 and want != "epee":
+			player.move_input = Vector2(0, 1)
+		else:
+			player.move_input = Vector2.ZERO
+			if player.state in [player.S.LOCO, player.S.LAND]: player.attack(want == "epee" and randf() < 0.35)
+			elif player.state == player.S.ATTACK and player.state_t > player.state_len * 0.5: player.attack(randf() < 0.3)
+		# captures aux bons moments
+		if not shots["67_sort_en_vol"] and want == "magie":
+			for c in get_children():
+				if c is Projectile and c.global_position.distance_to(player.global_position) > 3.0:
+					shots["67_sort_en_vol"] = true; await _shot(out, "67_sort_en_vol", report); break
+		elif not shots["68_impact_sort"] and want == "magie" and phase_t > 6.0 and player.state == player.S.ATTACK and player.hit_i >= 1:
+			await _wait(12); shots["68_impact_sort"] = true; await _shot(out, "68_impact_sort", report)
+		elif not shots["69_hugo_combat"] and hugo.combat and phase_t > 9.0:
+			shots["69_hugo_combat"] = true
+			cam.global_position = hugo.global_position + Vector3(-3.0, 1.8, 3.0); cam.look_at(hugo.global_position + Vector3(0, 1.0, 0)); cam.current = true
+			await _shot(out, "69_hugo_combat", report); player.cam.current = true
+		elif not shots["71_arc_tir"] and want == "arc" and player.state == player.S.ATTACK and player.state_t > player.state_len * 0.25:
+			shots["71_arc_tir"] = true; await _shot(out, "71_arc_tir", report)
+		elif not shots["72_brute"] and etape == 3 and phase_t > 2.0:
+			shots["72_brute"] = true; await _shot(out, "72_brute", report)
+		elif not shots["70_epee_trainee"] and want == "epee" and player.trail.samples.size() > 6:
+			shots["70_epee_trainee"] = true; await _shot(out, "70_epee_trainee", report)
+		if etape == 3 and not shots.has("_p3"): shots["_p3"] = true; phase_t = 0.0
+	player.move_input = Vector2.ZERO
+	rep["combat_s"] = game_t
+	rep["ko"] = cnt.ko
+	rep["quete_gare"] = quests.etat.gare.duplicate()
+	rep["monstres"] = quests.monstres.size()
+	var marc: Npc = life.npcs.marc
+	marc.hidden_inside = false; marc.visible = true
+	await _go_near(marc.global_position, 2.5, 30.0)
+	var r2: Dictionary = life.talk(marc)
+	rep["marc_dit"] = r2.texte
+	await _wait(30)
+	await _shot(out, "73_quete_terminee", report)
+	rep["quete_gare_fin"] = quests.etat.gare.duplicate()
+	rep["pv_max"] = player.pv_max
+	rep["journal"] = life.log_lines
+	var f := FileAccess.open(out.path_join("combat.json"), FileAccess.WRITE)
+	f.store_string(JSON.stringify(rep, "  ")); f.close()
+	print("COMBAT ", JSON.stringify(rep))
 	get_tree().quit()

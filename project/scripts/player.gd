@@ -4,6 +4,8 @@
 extends CharacterBody3D
 
 signal action_text(t: String)
+signal coup(style: String)          # chaque attaque lancée (entraînement, quêtes)
+signal ko
 @export var walk_speed := 1.6
 @export var jog_speed := 4.2
 @export var sprint_speed := 6.0
@@ -18,7 +20,7 @@ var pivot := Node3D.new()
 var arm := SpringArm3D.new()
 var cam := Camera3D.new()
 
-enum S { LOCO, AIR, ROLL, SLIDE, ATTACK, DODGE, EMOTE, LAND }
+enum S { LOCO, AIR, ROLL, SLIDE, ATTACK, DODGE, EMOTE, LAND, HIT, DEAD }
 var state := S.LOCO
 var state_t := 0.0
 var state_len := 0.0
@@ -32,6 +34,28 @@ var facing := Vector3.FORWARD
 var roll_dir := Vector3.ZERO
 var emotes := ["Celebration", "Dance_Loop", "Yes", "Idle_FoldArms_Loop", "Surprise", "Idle_No_Loop", "Drink"]
 var emote_i := 0
+# combat
+var pv := 120.0
+var pv_max := 120.0
+var vivant := true
+var hauteur := 1.8
+var rayon := 0.35
+var hurt_t := 99.0
+var hurt_flash := 0.0
+var shake := 0.0
+var hit_i := 0                 # prochain instant de frappe de l'attaque en cours
+var attack_name := ""
+var attack_heavy := false
+var trail: WeaponTrail
+var knock := Vector3.ZERO
+
+## instants de frappe (fraction de l'animation) ; par défaut un seul coup à 42 %
+const HIT_TIMES := {"Spell_Double_Shoot_Loop": [0.22, 0.58], "Bow_RapidShoot_Loop": [0.18, 0.5, 0.82],
+	"Sword_Light_A": [0.36], "Sword_Light_B": [0.36], "Sword_Light_C": [0.38], "Sword_Light_D": [0.4],
+	"Sword_Heavy_A": [0.48], "Sword_Heavy_B": [0.5], "Sword_Heavy_C": [0.5], "Sword_Heavy_D": [0.52],
+	"Sword_Aerial_A": [0.4], "Sword_Aerial_B": [0.4], "Punch_Jab": [0.35], "Punch_Cross": [0.38], "Kick": [0.42],
+	"Melee_Hook": [0.42], "Melee_Uppercut": [0.45], "Melee_Knee": [0.42], "Spell_Simple_Shoot": [0.38], "Bow_Shoot": [0.3]}
+const DEGATS := {"poings": [9.0, 17.0], "epee": [15.0, 28.0], "magie": [18.0, 13.0], "arc": [14.0, 9.0]}
 
 const COMBOS := {
 	"poings": {"legere": ["Punch_Jab", "Punch_Cross", "Melee_Hook", "Kick"], "lourde": ["Melee_Uppercut", "Melee_Knee"]},
@@ -43,6 +67,7 @@ const IDLE := {"poings": "Idle_Loop", "epee": "Sword_Idle", "magie": "Spell_Simp
 
 func _ready() -> void:
 	floor_max_angle = deg_to_rad(62.0)
+	collision_mask = 1 | 4           # le décor et les monstres
 	floor_snap_length = 0.35
 	var col := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new(); cap.radius = 0.32; cap.height = 1.8
@@ -59,6 +84,9 @@ func _ready() -> void:
 	arm.add_child(cam)
 	cam.fov = 68.0; cam.near = 0.08; cam.far = 900.0; cam.current = true
 	vis.play("Idle_Loop", 0.0)
+	add_to_group("combattants")
+	trail = WeaponTrail.new()
+	add_child(trail)
 
 func style() -> String: return styles[style_i]
 
@@ -73,10 +101,14 @@ func next_style() -> void:
 	if state in [S.ATTACK, S.ROLL, S.SLIDE]: return
 	style_i = (style_i + 1) % styles.size()
 	vis.set_weapon(style())
+	if vis.weapon_mesh and style() == "epee":
+		var ax: Array = vis.weapon_axis()
+		trail.setup(vis.weapon_mesh, ax[0], ax[1], Color(0.45, 0.72, 1.0))
 	combo_i = 0
 	action_text.emit({"poings": "Mains nues", "epee": "Épée", "magie": "Magie", "arc": "Arc"}[style()])
 
 func attack(heavy := false) -> void:
+	if not vivant or state == S.HIT: return
 	var kind := "lourde" if heavy else "legere"
 	if state == S.AIR and style() == "epee":
 		_start_attack(COMBOS.epee.air[0]); return
@@ -91,8 +123,103 @@ func _start_attack(n: String) -> void:
 	state_len = max(vis.length(n) * 0.92, 0.25)
 	vis.play(n, 0.08, 1.15, true)
 	queued = ""
+	attack_name = n; hit_i = 0
+	attack_heavy = n in COMBOS[style()].get("lourde", []) or n.begins_with("Sword_Aerial")
+	# visée assistée : on se tourne vers l'ennemi le plus proche devant soi
+	var t := cible_visee()
+	if t:
+		var to := t.global_position - global_position
+		vis.rotation.y = atan2(to.x, to.z)
+	coup.emit(style())
+
+## ennemi visé : le plus proche dans un cône devant le héros (ou la caméra)
+func cible_visee(portee := 24.0) -> Node3D:
+	var fwd := Basis(Vector3.UP, vis.rotation.y) * Vector3(0, 0, 1)
+	var camf := Basis(Vector3.UP, yaw) * Vector3(0, 0, -1)
+	var best: Node3D = null; var bs := -1e9
+	for e in get_tree().get_nodes_in_group("ennemis"):
+		var to: Vector3 = e.global_position - global_position; to.y = 0
+		var d := to.length()
+		if d > portee: continue
+		var dir := to / maxf(d, 0.01)
+		var score := maxf(dir.dot(fwd), dir.dot(camf)) * 10.0 - d
+		if maxf(dir.dot(fwd), dir.dot(camf)) > 0.25 and score > bs: bs = score; best = e
+	return best
+
+func _bone_pos(b: String) -> Vector3:
+	var sk := vis.skeleton
+	return sk.global_transform * sk.get_bone_global_pose(sk.find_bone(b)).origin
+
+## le coup part : corps à corps, sort ou flèche
+func _strike() -> void:
+	var heavy := attack_heavy
+	var dmg: float = DEGATS[style()][1 if heavy else 0]
+	var fwd := Basis(Vector3.UP, vis.rotation.y) * Vector3(0, 0, 1)
+	match style():
+		"poings", "epee":
+			var reach := 2.4 if style() == "epee" else 1.7
+			if heavy: reach += 0.4
+			var touche := false
+			for e in get_tree().get_nodes_in_group("ennemis"):
+				var to: Vector3 = e.global_position - global_position; to.y = 0
+				var dd := to.length()
+				if dd < reach + float(e.rayon) and (dd < 0.6 or fwd.dot(to / dd) > 0.35):
+					var crit := randf() < 0.12
+					var val := dmg * (1.6 if crit else 1.0)
+					e.touche(val, global_position)
+					var p: Vector3 = e.global_position + Vector3(0, float(e.hauteur) * 0.55, 0) - to.normalized() * float(e.rayon)
+					Fx.spawn(get_parent(), "Electric" if style() == "epee" else "Pure", "Radial_01", Transform3D(Basis(), p), 0.14 if not heavy else 0.22, 1.2)
+					Fx.flash(get_parent(), p, Fx.TEINTE.Electric if style() == "epee" else Fx.TEINTE.Pure, 3.0, 5.0, 0.2)
+					Fx.nombre(get_parent(), p + Vector3(0, 0.4, 0), val, crit)
+					touche = true
+			if touche:
+				shake = 0.5 if heavy else 0.25
+				if heavy: _hitstop(0.07)
+		"magie":
+			var from := _bone_pos("hand_r") + fwd * 0.25
+			var t := cible_visee()
+			var pr := Projectile.new()
+			pr.exclude = [get_rid()]; pr.kind = "sort"; pr.couleur = "Dark" if heavy else "Mystic"; pr.degats = dmg; pr.taille = 1.25 if heavy else 1.0
+			get_parent().add_child(pr)
+			var aim := (t.global_position + Vector3(0, 1.0, 0) - from).normalized() if t else fwd
+			if heavy: aim = aim.rotated(Vector3.UP, 0.12 if hit_i == 1 else -0.12)
+			pr.lance(from, aim, 22.0, t)
+			Fx.flash(get_parent(), from, Fx.TEINTE.Dark if heavy else Fx.TEINTE.Mystic, 2.5, 4.0, 0.25)
+		"arc":
+			var from2 := _bone_pos("hand_l") + Vector3(0, 0.05, 0) + fwd * 0.3
+			var t2 := cible_visee(32.0)
+			var pr2 := Projectile.new()
+			pr2.exclude = [get_rid()]; pr2.kind = "fleche"; pr2.degats = dmg; pr2.vie = 1.4
+			get_parent().add_child(pr2)
+			pr2.lance(from2, (t2.global_position + Vector3(0, 1.0, 0) - from2).normalized() if t2 else fwd, 38.0, t2)
+
+func _hitstop(d: float) -> void:
+	Engine.time_scale = 0.06
+	await get_tree().create_timer(d, true, false, true).timeout
+	Engine.time_scale = 1.0
+
+## coup reçu (les roulades et glissades esquivent)
+func blesse(dmg: float, from: Vector3) -> void:
+	if not vivant or state in [S.ROLL, S.SLIDE, S.DEAD]: return
+	pv -= dmg; hurt_t = 0.0; hurt_flash = 1.0; shake = 0.45
+	var away := global_position - from; away.y = 0
+	knock = away.normalized() * 4.0
+	Fx.nombre(get_parent(), global_position + Vector3(0, 2.0, 0), dmg, false, Color(1.0, 0.35, 0.3))
+	if pv <= 0.0:
+		pv = 0.0; vivant = false; state = S.DEAD; state_t = 0.0
+		vis.play("Death01", 0.1, 1.0, true)
+		action_text.emit("Vous perdez connaissance…")
+		return
+	state = S.HIT; state_t = 0.0; state_len = 0.42
+	vis.play(["Hit_Chest", "Hit_Head", "Hit_Shoulder_L", "Hit_Shoulder_R"][randi() % 4], 0.06, 1.2, true)
+
+func revive(at: Vector3) -> void:
+	global_position = at; velocity = Vector3.ZERO
+	pv = pv_max; vivant = true; state = S.LAND; state_t = 0.0
+	vis.play("KipUp", 0.0, 1.0, true)
 
 func dodge() -> void:
+	if not vivant or state == S.HIT: return
 	if not is_on_floor() or state in [S.ROLL, S.SLIDE]: return
 	var hv := Vector3(velocity.x, 0, velocity.z)
 	var mv := _move_dir()
@@ -124,6 +251,17 @@ func _move_dir() -> Vector3:
 func _physics_process(dt: float) -> void:
 	pivot.rotation = Vector3(pitch, yaw, 0)
 	state_t += dt
+	hurt_t += dt
+	hurt_flash = max(hurt_flash - dt * 2.5, 0.0)
+	if hurt_t > 6.0 and vivant: pv = min(pv_max, pv + 8.0 * dt)
+	shake = max(shake - dt * 2.2, 0.0)
+	cam.h_offset = randf_range(-1.0, 1.0) * shake * 0.09
+	cam.v_offset = randf_range(-1.0, 1.0) * shake * 0.07
+	trail.active = state == S.ATTACK and style() == "epee" and state_t < state_len * 0.8
+	if state == S.ATTACK:
+		var hts: Array = HIT_TIMES.get(attack_name, [0.42])
+		if hit_i < hts.size() and state_t >= state_len * float(hts[hit_i]) / 0.92:
+			_strike(); hit_i += 1
 	var mv := _move_dir()
 	var amount := mv.length()
 	var hv := Vector3(velocity.x, 0, velocity.z)
@@ -155,10 +293,17 @@ func _physics_process(dt: float) -> void:
 			if state_t > 0.25 and vis.current == "Slide_Start": vis.play("Slide_Loop", 0.1)
 			if state_t > state_len:
 				vis.play("Slide_Exit", 0.1, 1.0, true); state = S.LAND; state_t = 0.0
+		S.HIT:
+			target = knock
+			if state_t > state_len: state = S.LOCO
+		S.DEAD:
+			target = Vector3.ZERO
+			if state_t > 3.5: ko.emit()
 		S.AIR:
 			target = hv.lerp(mv.normalized() * max(hv.length(), jog_speed) if amount > 0.05 else hv, 2.5 * dt)
 	var accel := 24.0 if is_on_floor() else 8.0
-	if state in [S.ROLL, S.SLIDE, S.ATTACK]: hv = target
+	knock = knock.move_toward(Vector3.ZERO, 12.0 * dt)
+	if state in [S.ROLL, S.SLIDE, S.ATTACK, S.HIT, S.DEAD]: hv = target
 	else: hv = hv.move_toward(target, accel * dt)
 	velocity.x = hv.x; velocity.z = hv.z
 	# saut / double saut

@@ -63,6 +63,9 @@ jobs:
         run: |
           timeout 1500 xvfb-run -a -s "-screen 0 1280x720x24" ~/godot/godot --path project --rendering-method mobile --rendering-driver vulkan --resolution 1280x720 -- --capture 2>&1 | grep -vE "^\s*$" | tail -60
           ls -la captures || true
+      - name: Combat et quêtes (joués en jeu)
+        run: |
+          timeout 1700 xvfb-run -a -s "-screen 0 1280x720x24" ~/godot/godot --path project --rendering-method mobile --rendering-driver vulkan --resolution 1280x720 --fixed-fps 60 -- --combat 2>&1 | grep -E "COMBAT|ERROR|SCRIPT|capture" | head -60
       - name: Publication des captures (branche captures)
         run: |
           mkdir -p /tmp/cap && cp -r captures/* /tmp/cap/ 2>/dev/null || true
