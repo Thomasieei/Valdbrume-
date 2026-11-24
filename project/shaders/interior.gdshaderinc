@@ -13,7 +13,7 @@ uniform float room_depth = 0.9;       // profondeur de la pièce (unités de lar
 vec3 fake_room(vec2 uv, vec3 vts, vec3 p) {
 	vec3 o = vec3(uv.x, 1.0 - uv.y, 0.0);
 	vec3 d = -normalize(vts);
-	d.z = min(d.z, -0.05);
+	d.z = min(d.z, -0.32);           // évite l'étirement aux angles rasants
 	d.x = abs(d.x) < 1e-4 ? 1e-4 : d.x;
 	d.y = abs(d.y) < 1e-4 ? 1e-4 : d.y;
 	vec3 inv = 1.0 / d;

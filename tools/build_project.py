@@ -123,7 +123,7 @@ def viewpoints():
         dict(name='06_vieux_quartier_rue', eye=[-145, 1.7, -60], at=[-147, 6, -180]),
         dict(name='07_vieux_quartier_carrefour', eye=[-245, 1.7, -112], at=[-275, 5, -140]),
         dict(name='08_affaires_avenue', eye=[255, 1.7, 100], at=[258, 22, -20]),
-        dict(name='09_affaires_carrefour', eye=[151, 1.7, 118], at=[262, 16, 129]),
+        dict(name='09_affaires_carrefour', eye=[146, 1.7, 112], at=[262, 18, 131]),
         dict(name='10_avenue_sud', eye=[-100, 1.7, 133], at=[80, 10, 129]),
         dict(name='11_fond_de_rue_nord', eye=[-258, 1.7, -150], at=[-258, 8, -230]),
         dict(name='12_trottoir_vitrines', eye=[-110, 1.7, 9.0], at=[-98, 3.5, 12.5]),
