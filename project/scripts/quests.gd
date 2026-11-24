@@ -119,7 +119,7 @@ func _on_parle(id: String) -> void:
 func _on_coup(_style: String) -> void:
 	if etat.has("hugo") and etat.hugo.etape == 1 and not etat.hugo.fini:
 		var h: Npc = life.npcs.hugo
-		if h.place == "entrainement" and h.global_position.distance_to(player.global_position) < 7.0:
+		if h.place == "entrainement" and h.global_position.distance_to(player.global_position) < 8.0:
 			etat.hugo.compte += 1
 			if etat.hugo.compte >= 12: _eveil_hugo()
 

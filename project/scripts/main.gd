@@ -381,9 +381,13 @@ func _test_combat() -> void:
 	await _wait(10)
 	await _shot(out, "60_quete_hugo_entrainement", report)
 	_set_style("poings")
-	for i in 14:
+	for i in 22:
+		if player.global_position.distance_to(hugo.global_position) > 3.5:
+			player.global_position = hugo.global_position + Vector3(2.5, 0.3, 1.0)
+		player.vis.rotation.y = PI          # face au mannequin, à côté de Hugo
 		player.attack(i % 3 == 2)
 		await _wait(32)
+		if hugo.chasseur: break
 		print("COMBAT_DBG coup ", i, " joueur=", player.global_position, " v=", player.velocity, " etat=", player.state, " hugo=", hugo.global_position, " lieu=", hugo.place, " chemin=", hugo.path.size() - hugo.path_i, " compte=", quests.etat.hugo.compte)
 	rep["hugo_chasseur"] = hugo.chasseur
 	rep["quete_hugo"] = quests.etat.hugo.duplicate()
