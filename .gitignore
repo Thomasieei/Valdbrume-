@@ -1,0 +1,6 @@
+project/.godot/
+project/assets/city/gen/
+build/
+captures/
+__pycache__/
+*.pyc

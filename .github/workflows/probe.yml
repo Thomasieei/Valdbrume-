@@ -1,9 +1,0 @@
-name: probe
-on: { push: { paths: ['.github/workflows/probe.yml'] }, workflow_dispatch: {} }
-jobs:
-  probe:
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          wget -q https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip && unzip -q Godot_v4.7.2-stable_linux.x86_64.zip && ./Godot_v4.7.2-stable_linux.x86_64 --version
-          nproc; free -g

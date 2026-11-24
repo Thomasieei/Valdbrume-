@@ -1,0 +1,80 @@
+name: Ville — construction, tests en jeu, APK
+on:
+  push:
+    branches: [main]
+    paths: ['project/**', 'tools/**', 'kit/**', '.github/workflows/build.yml']
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency: { group: build, cancel-in-progress: true }
+env:
+  GODOT_VERSION: 4.7.2
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Outils Python
+        run: pip install numpy scipy trimesh pygltflib meshoptimizer pillow
+      - name: Génération de la ville (zones, atlas, collisions)
+        run: python tools/build_project.py
+      - name: Godot (cache)
+        id: gcache
+        uses: actions/cache@v4
+        with:
+          path: ~/godot
+          key: godot-${{ env.GODOT_VERSION }}-v2
+      - name: Téléchargement de Godot
+        if: steps.gcache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/godot && cd ~/godot
+          wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
+          wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz
+          unzip -q Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip && mv Godot_v${GODOT_VERSION}-stable_linux.x86_64 godot
+          unzip -q Godot_v${GODOT_VERSION}-stable_export_templates.tpz
+          rm -f *.zip *.tpz
+      - name: Installation (modèles d'export, rendu logiciel Vulkan)
+        run: |
+          mkdir -p ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          cp ~/godot/templates/* ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable/
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb mesa-vulkan-drivers libvulkan1 vulkan-tools > /dev/null
+      - name: Import des ressources
+        run: |
+          ~/godot/godot --headless --path project --import 2>&1 | grep -vE "^\s*$" | tail -40 || true
+          ~/godot/godot --headless --path project --import 2>&1 | grep -iE "error|warn" | head -40 || true
+      - name: Traversée du boulevard (physique)
+        run: timeout 900 ~/godot/godot --headless --path project --fixed-fps 60 -- --traverse 2>&1 | grep -E "TRAVERSEE|ERROR|SCRIPT" | head -30
+      - name: Captures en jeu
+        run: |
+          timeout 1800 xvfb-run -a -s "-screen 0 1280x720x24" ~/godot/godot --path project --rendering-method mobile --rendering-driver vulkan --resolution 1280x720 -- --capture 2>&1 | grep -vE "^\s*$" | tail -60
+          ls -la captures || true
+      - name: Publication des captures (branche captures)
+        run: |
+          mkdir -p /tmp/cap && cp -r captures/* /tmp/cap/ 2>/dev/null || true
+          cd /tmp/cap && git init -q -b captures && git add -A
+          git -c user.name=ci -c user.email=ci@local commit -qm "captures ${GITHUB_SHA::7}" || true
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" captures
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - name: Clé de signature et réglages Android
+        run: |
+          keytool -genkeypair -v -keystore ~/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Valdbrume,O=Valdbrume,C=FR" > /dev/null 2>&1
+          mkdir -p ~/.config/godot
+          printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/android_sdk_path = "%s"\nexport/android/java_sdk_path = "%s"\nexport/android/debug_keystore = "%s/debug.keystore"\nexport/android/debug_keystore_user = "androiddebugkey"\nexport/android/debug_keystore_pass = "android"\n' "$ANDROID_SDK_ROOT" "$JAVA_HOME" "$HOME" > ~/.config/godot/editor_settings-4.7.tres
+      - name: Export APK
+        run: |
+          mkdir -p build
+          ~/godot/godot --headless --path project --export-debug "Android" ../build/valdbrume.apk 2>&1 | tail -20
+          ls -la build
+      - name: Publier l'APK (lien fixe)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-ville
+          name: Valdbrume — ville de départ (dernier APK)
+          prerelease: true
+          make_latest: false
+          files: build/valdbrume.apk
+          body: "APK de test de la ville de départ, recompilé à chaque mise à jour."
