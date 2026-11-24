@@ -12,12 +12,13 @@ jobs:
             code=$(curl -sL -o "$f" -w "%{http_code}" "https://opengameart.org/sites/default/files/$f"); echo "$f -> $code $(stat -c%s "$f" 2>/dev/null)"
             if [ "$code" = 200 ] && unzip -tq "$f" >/dev/null 2>&1; then unzip -l "$f" | awk '{print $4}' | grep -vE '/$' | head -80; else rm -f "$f"; fi
           done
-      - name: Recherche GitHub
+      - name: Contenu des bibliothèques d'animation
+        run: |
+          cd a
+          for f in *.zip; do echo "== $f"; zipinfo -1 "$f" | grep -vE '/$' | head -60; done
+      - name: Recherche GitHub (personnages)
         env: { GH_TOKEN: '${{ github.token }}' }
         run: |
-          for q in "quaternius universal base characters" "quaternius base characters" "Universal Animation Library quaternius" "quaternius characters glb"; do
-            echo "== $q"; gh api -X GET search/repositories -f q="$q" -f per_page=8 --jq '.items[] | "\(.full_name) \(.size)KB \(.html_url)"' || true
-          done
-          for q in "filename:Superhero_Male" "filename:UAL1_Standard" "filename:AnimationLibrary_Godot_Standard" "filename:Regular_Male extension:glb" "filename:Superhero_Female extension:glb"; do
-            echo "== code: $q"; gh api -X GET search/code -f q="$q" -f per_page=10 --jq '.items[] | "\(.repository.full_name) \(.path)"' || true
+          for q in "filename:Superhero_Male" "filename:Superhero_Female" "filename:Regular_Male" "filename:Teen_Female" "Universal Base Characters quaternius" "filename:Hair_Buzzed" "filename:Hair_Long extension:gltf"; do
+            sleep 8; echo "== code: $q"; gh api -X GET search/code -f q="$q" -f per_page=12 --jq '.items[] | "\(.repository.full_name) \(.path)"' || true
           done
