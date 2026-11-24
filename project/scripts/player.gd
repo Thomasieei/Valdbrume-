@@ -168,7 +168,7 @@ func _strike() -> void:
 					var val := dmg * (1.6 if crit else 1.0)
 					e.touche(val, global_position)
 					var p: Vector3 = e.global_position + Vector3(0, float(e.hauteur) * 0.55, 0) - to.normalized() * float(e.rayon)
-					Fx.spawn(get_parent(), "Electric" if style() == "epee" else "Pure", "Radial_01", Transform3D(Basis(), p), 0.14 if not heavy else 0.22, 1.2)
+					Fx.spawn(get_parent(), "Electric" if style() == "epee" else "Pure", "Radial_01", Transform3D(Basis(), p), 0.7 if not heavy else 1.1, 1.2)
 					Fx.flash(get_parent(), p, Fx.TEINTE.Electric if style() == "epee" else Fx.TEINTE.Pure, 3.0, 5.0, 0.2)
 					Fx.nombre(get_parent(), p + Vector3(0, 0.4, 0), val, crit)
 					touche = true

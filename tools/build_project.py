@@ -223,6 +223,11 @@ def main():
     meta['islands'] = islands(); meta['ramps'] = ramps(); meta['views'] = viewpoints()
     meta['spawn'] = [0, 0.3, 34]
     meta['nav'] = nav.build()
+    import lamps
+    meta['lampes'] = lamps.positions()
+    lamps.build_mesh(os.path.join(GEN, 'lampadaire.glb')); write_import_scene(os.path.join(GEN, 'lampadaire.glb'))
+    for (x, z, _r) in meta['lampes']:
+        meta['boxes'].append([x, 1.6, z, 0.3, 3.2, 0.3])     # le fût arrête le joueur
     meta['city'] = list(skyline.CITY)
     from builder import PALETTE
     meta['palette'] = [list(c) for c in PALETTE]

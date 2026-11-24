@@ -115,7 +115,7 @@ const ARMES := {
 	"epee": ["Human_Sword", "hand_r", Vector3(0, 0, -90), Vector3(0.0, 0.08, 0.02)],
 	"epee_lourde": ["Human_Greatsword", "hand_r", Vector3(0, 0, -90), Vector3(0.0, 0.08, 0.02)],
 	"dague": ["Human_Dagger", "hand_r", Vector3(0, 0, -90), Vector3(0.0, 0.08, 0.02)],
-	"arc": ["HumanArcher_Bow", "hand_l", Vector3(0, 0, 90), Vector3(0.0, 0.08, -0.02)],
+	"arc": ["HumanArcher_Bow", "hand_l", Vector3(90, 0, 0), Vector3(0.0, 0.08, -0.02)],
 }
 ## dans le dos (rangée) : sur la colonne, en diagonale
 const DOS := {
@@ -156,7 +156,7 @@ func set_weapon(kind: String) -> void:
 	if kind == "magie":
 		# l'énergie du chasseur au creux de la main
 		var att := BoneAttachment3D.new(); att.bone_name = "hand_r"; skeleton.add_child(att)
-		var f := Fx.spawn(att, "Mystic", "02", Transform3D(Basis(), Vector3(0.0, 0.1, 0.0)), 0.07, -1.0)
+		var f := Fx.spawn(att, "Mystic", "02", Transform3D(Basis(), Vector3(0.0, 0.1, 0.0)), 0.3, -1.0)
 		var l := OmniLight3D.new(); l.light_color = Fx.TEINTE.Mystic; l.light_energy = 0.9; l.omni_range = 2.2
 		att.add_child(l); extras.append(att)
 		return

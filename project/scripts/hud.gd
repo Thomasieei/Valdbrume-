@@ -108,15 +108,15 @@ func _process(dt: float) -> void:
 	big.modulate.a = a; big_sub.modulate.a = a
 	# quête suivie
 	obj = quests.objectif() if quests else null
-	if quests and quests.suivie != "":
-		q_title.text = "◆ " + quests.QUETES[quests.suivie].titre
-		var dist := "" if obj == null else "  · %d m" % int(player.global_position.distance_to(obj))
-		q_text.text = quests.texte(quests.suivie) + dist
+	if quests and quests.suivie != "" and quests.etat.has(quests.suivie):
+		var dist := "" if obj == null else "   %d m" % int(player.global_position.distance_to(obj))
+		q_title.text = "◆ " + quests.QUETES[quests.suivie].titre + dist
+		q_text.text = quests.texte(quests.suivie)
 		q_title.visible = true; q_text.visible = true
 	else:
 		q_title.visible = false; q_text.visible = false
 	if marker.is_inside_tree():
-		marker.visible = obj != null and player.global_position.distance_to(obj) > 4.0
+		marker.visible = obj != null and player.global_position.distance_to(obj) > 18.0
 		if marker.visible: marker.global_position = obj + Vector3(0, 30.0, 0)
 	var n = life.nearest_npc(player.global_position, 3.2)
 	if n != talk_target:
@@ -192,13 +192,14 @@ func _draw() -> void:
 	# flèche vers l'objectif hors de l'écran
 	var cam := get_viewport().get_camera_3d()
 	if obj != null and cam:
-		var target: Vector3 = obj + Vector3(0, 1.2, 0)
+		var target: Vector3 = obj + Vector3(0, 2.45, 0)
 		var behind := cam.is_position_behind(target)
 		var sp := cam.unproject_position(target)
 		if behind: sp = w - sp
 		var inside := not behind and Rect2(Vector2(40, 40), w - Vector2(80, 80)).has_point(sp)
 		if inside:
-			draw_circle(sp, 9, Color(1.0, 0.78, 0.35, 0.9)); draw_arc(sp, 15, 0, TAU, 24, Color(1, 0.78, 0.35, 0.7), 2.0, true)
+			var pts2 := PackedVector2Array([sp + Vector2(0, 9), sp + Vector2(-7, -3), sp + Vector2(7, -3)])
+			draw_colored_polygon(pts2, Color(1.0, 0.78, 0.35, 0.95))
 		else:
 			var c2 := w * 0.5
 			var dir := (sp - c2).normalized()

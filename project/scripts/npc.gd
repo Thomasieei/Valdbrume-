@@ -121,7 +121,7 @@ func _frappe(tgt) -> void:
 	if global_position.distance_to(tgt.global_position) > 3.4 + float(tgt.rayon): return
 	tgt.touche(14.0, global_position)
 	var p: Vector3 = tgt.global_position + Vector3(0, float(tgt.hauteur) * 0.5, 0)
-	Fx.spawn(get_parent(), "Electric", "Radial_01", Transform3D(Basis(), p), 0.14, 1.2)
+	Fx.spawn(get_parent(), "Electric", "Radial_01", Transform3D(Basis(), p), 0.8, 1.2)
 	Fx.nombre(get_parent(), p + Vector3(0, 0.5, 0), 14.0, false, Color(0.7, 0.85, 1.0))
 
 func _process(dt: float) -> void:

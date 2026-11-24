@@ -60,8 +60,10 @@ func setup(p_type: String) -> void:
 	floor_snap_length = 0.4
 
 func _barre() -> void:
-	var n := int(ceil(10.0 * pv / d.pv))
-	barre.text = "%s\n%s" % [d.nom, "■".repeat(n) + "□".repeat(10 - n)]
+	var n := clampi(int(ceil(10.0 * pv / d.pv)), 0, 10)
+	var s := ""
+	for i in 10: s += "■" if i < n else "□"
+	barre.text = "%s\n%s" % [d.nom, s]
 
 func _cible() -> Node3D:
 	var best: Node3D = null; var bd := 60.0
@@ -95,7 +97,7 @@ func _physics_process(dt: float) -> void:
 		for mi in meshes: mi.set_instance_shader_parameter("flash", flash)
 	if state == "mort":
 		if t > 1.6 and t < 1.7:
-			Fx.spawn(get_parent(), "Dark", "Radial_02", Transform3D(Basis(), global_position), 0.35 * d.taille, 2.0)
+			Fx.spawn(get_parent(), "Dark", "Radial_02", Transform3D(Basis(), global_position), 1.6 * d.taille, 2.0)
 		if t > 2.0:
 			var k := clampf((t - 2.0) / 0.8, 0.0, 1.0)
 			for mi in meshes: mi.set_instance_shader_parameter("dissolve", k)

@@ -13,7 +13,7 @@ var force_hour := -1.0          # pour les captures
 const DAY_TOP := Color(0.27, 0.44, 0.72)
 const DAY_HOR := Color(0.90, 0.80, 0.68)
 const GOLD_HOR := Color(1.0, 0.62, 0.36)
-const NIGHT_TOP := Color(0.015, 0.03, 0.075)
+const NIGHT_TOP := Color(0.025, 0.045, 0.1)
 const NIGHT_HOR := Color(0.08, 0.10, 0.17)
 
 func _process(dt: float) -> void:
@@ -36,12 +36,12 @@ func apply(h: float) -> void:
 		# la lune : lumière froide et faible, ombres conservées
 		sun.rotation_degrees = Vector3(-48.0, 35.0, 0.0)
 		sun.light_color = Color(0.55, 0.66, 1.0)
-		sun.light_energy = 0.32 * n
+		sun.light_energy = 0.55 * n
 	sky.sky_top_color = DAY_TOP.lerp(NIGHT_TOP, n)
 	sky.sky_horizon_color = DAY_HOR.lerp(GOLD_HOR, gold * 0.75).lerp(NIGHT_HOR, n)
 	sky.ground_horizon_color = Color(0.80, 0.76, 0.70).lerp(Color(0.06, 0.07, 0.11), n)
 	sky.ground_bottom_color = Color(0.55, 0.53, 0.50).lerp(Color(0.03, 0.035, 0.05), n)
-	env.ambient_light_energy = lerpf(0.7, 0.32, n)
+	env.ambient_light_energy = lerpf(0.7, 0.5, n)
 	env.ambient_light_color = Color(0.66, 0.62, 0.58).lerp(Color(0.30, 0.36, 0.55), n)
 	env.fog_light_color = Color(0.80, 0.76, 0.71).lerp(GOLD_HOR, gold * 0.35).lerp(Color(0.06, 0.07, 0.12), n)
 	env.glow_intensity = lerpf(0.35, 0.8, n)

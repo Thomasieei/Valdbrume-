@@ -12,12 +12,12 @@ var base_fx: Node3D
 
 func _ready() -> void:
 	var q := MeshInstance3D.new()
-	var qm := QuadMesh.new(); qm.size = Vector2(3.6, 5.0)
+	var qm := QuadMesh.new(); qm.size = Vector2(4.4, 6.2)
 	q.mesh = qm
 	mat.shader = load("res://shaders/gate.gdshader")
 	mat.set_shader_parameter("open", 0.0)
 	q.material_override = mat
-	q.position.y = 2.75
+	q.position.y = 3.3
 	q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(q)
 	light.light_color = Color(0.4, 0.65, 1.0); light.omni_range = 16.0; light.light_energy = 0.0
@@ -33,7 +33,7 @@ func _process(dt: float) -> void:
 			light.light_energy = 3.0 * k
 			if k >= 1.0:
 				etat = "stable"; t = 0.0
-				base_fx = Fx.spawn(self, "Electric", "Radial_02", Transform3D(Basis(), Vector3(0, 0.05, 0)), 0.55, -1.0)
+				base_fx = Fx.spawn(self, "Electric", "Radial_02", Transform3D(Basis(), Vector3(0, 0.05, 0)), 3.2, -1.0)
 		"stable":
 			light.light_energy = 3.0 + 0.6 * sin(t * 2.3)
 		"instable":
@@ -41,7 +41,7 @@ func _process(dt: float) -> void:
 			light.light_energy = 3.5 + 1.8 * absf(sin(t * 9.0))
 			if t > 3.2:
 				etat = "brise"; t = 0.0
-				Fx.spawn(get_parent(), "Electric", "Radial_01", Transform3D(Basis(), global_position + Vector3(0, 0.1, 0)), 1.0, 2.5)
+				Fx.spawn(get_parent(), "Electric", "Radial_01", Transform3D(Basis(), global_position + Vector3(0, 0.1, 0)), 4.5, 2.5)
 				Fx.flash(get_parent(), global_position + Vector3(0, 2.0, 0), Color(0.5, 0.75, 1.0), 10.0, 25.0, 0.9)
 				brise.emit()
 		"brise":

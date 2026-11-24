@@ -49,6 +49,7 @@ func donne(id: String, message := "") -> void:
 	life._save()
 
 func texte(id: String) -> String:
+	if not etat.has(id): return ""
 	var e: Dictionary = etat[id]
 	if e.fini: return "Terminée."
 	if e.get("echec", false): return "Échouée."
@@ -125,7 +126,7 @@ func _on_coup(_style: String) -> void:
 func _eveil_hugo() -> void:
 	var h: Npc = life.npcs.hugo
 	h.react("Celebration", 3.0, player.global_position)
-	Fx.spawn(get_parent(), "Electric", "Radial_02", Transform3D(Basis(), h.global_position), 0.5, 3.0)
+	Fx.spawn(get_parent(), "Electric", "Radial_02", Transform3D(Basis(), h.global_position), 2.4, 3.0)
 	Fx.flash(get_parent(), h.global_position + Vector3(0, 1.2, 0), Color(0.45, 0.7, 1.0), 8.0, 12.0, 1.2)
 	h.devient_chasseur()
 	if not "chasseur novice" in life.mem.hugo.souvenirs: life.mem.hugo.souvenirs.append("chasseur novice")
@@ -225,4 +226,4 @@ func _spawn(type: String, pos: Vector3, delai: float) -> void:
 	m.global_position = pos
 	m.model.rotation.y = PI / 2.0
 	monstres.append(m)
-	Fx.spawn(get_parent(), "Dark", "Radial_01", Transform3D(Basis(), pos), 0.35, 2.0)
+	Fx.spawn(get_parent(), "Dark", "Radial_01", Transform3D(Basis(), pos), 1.8, 2.0)

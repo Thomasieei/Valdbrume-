@@ -31,7 +31,7 @@ func lance(from: Vector3, dir: Vector3, vitesse: float, p_cible: Node3D) -> void
 		mat.albedo_texture = load("res://assets/human/HumanAnimations_ColorPalette.png")
 		mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
 		for m in a.find_children("*", "MeshInstance3D", true, false): m.material_override = mat
-		Fx.spawn(self, "Electric", "02", Transform3D(Basis(Vector3.RIGHT, PI / 2.0), Vector3(0, 0, 0.35)), 0.06 * taille, -1.0)
+		Fx.spawn(self, "Electric", "02", Transform3D(Basis(Vector3.RIGHT, PI / 2.0), Vector3(0, 0, 0.35)), 0.3 * taille, -1.0)
 	else:
 		if _orb_mat == null:
 			_orb_mat = StandardMaterial3D.new()
@@ -44,7 +44,7 @@ func lance(from: Vector3, dir: Vector3, vitesse: float, p_cible: Node3D) -> void
 		core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(core)
 		# la flamme stylisée couchée dans le sens du vol forme la traîne de l'orbe
-		Fx.spawn(self, couleur, "01", Transform3D(Basis(Vector3.RIGHT, PI / 2.0), Vector3.ZERO), 0.16 * taille, -1.0)
+		Fx.spawn(self, couleur, "01", Transform3D(Basis(Vector3.RIGHT, PI / 2.0), Vector3.ZERO), 0.75 * taille, -1.0)
 		var l := OmniLight3D.new(); l.light_color = Fx.TEINTE[couleur]; l.light_energy = 2.2; l.omni_range = 4.5
 		add_child(l)
 
@@ -75,6 +75,6 @@ func _boum(p: Vector3) -> void:
 	var parent := get_parent()
 	var k := "Radial_01" if kind == "sort" else "Radial_02"
 	var col := couleur if kind == "sort" else "Electric"
-	Fx.spawn(parent, col, k, Transform3D(Basis(), p - Vector3(0, 0.1, 0)), (0.32 if kind == "sort" else 0.18) * taille, 1.6)
+	Fx.spawn(parent, col, k, Transform3D(Basis(), p - Vector3(0, 0.1, 0)), (1.5 if kind == "sort" else 0.8) * taille, 1.6)
 	Fx.flash(parent, p, Fx.TEINTE[col], 4.0 * taille, 7.0)
 	queue_free()

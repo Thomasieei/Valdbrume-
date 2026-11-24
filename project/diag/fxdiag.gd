@@ -42,4 +42,20 @@ func _run() -> void:
 	var g := Portail.new(); w.add_child(g); g.position = Vector3(0, 0, -4)
 	for i in 200: await process_frame
 	await _shot("fxdiag_d_portail")
+	g.queue_free()
+	# monstres en plein jour (aucune lumière d'effet) et héros à l'arc / magie
+	for e in w.get_children():
+		if e.name.begins_with("VFX"): e.queue_free()
+	var m1 := Monstre.new(); w.add_child(m1); m1.setup("rodeur"); m1.position = Vector3(-2.2, 0, 0); m1.model.rotation.y = 0.4
+	var m2 := Monstre.new(); w.add_child(m2); m2.setup("brute"); m2.position = Vector3(2.4, 0, -0.5); m2.model.rotation.y = -0.4
+	for i in 90: await process_frame
+	await _shot("fxdiag_e_monstres")
+	m1.queue_free(); m2.queue_free()
+	var h := CharacterVisual.new(); w.add_child(h); h.setup("heros"); h.position = Vector3(-1.2, 0, 3.5); h.rotation.y = deg_to_rad(70)
+	h.set_weapon("arc"); h.play("Bow_Aim_Neutral", 0.0)
+	var h2 := CharacterVisual.new(); w.add_child(h2); h2.setup("heros"); h2.position = Vector3(1.4, 0, 3.5); h2.rotation.y = deg_to_rad(-30)
+	h2.set_weapon("magie"); h2.play("Spell_Simple_Idle_Loop", 0.0)
+	cam.position = Vector3(0, 1.5, 7.5); cam.look_at(Vector3(0, 1.1, 3.5))
+	for i in 60: await process_frame
+	await _shot("fxdiag_f_arc_magie")
 	quit()

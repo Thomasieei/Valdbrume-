@@ -384,6 +384,7 @@ func _test_combat() -> void:
 	for i in 14:
 		player.attack(i % 3 == 2)
 		await _wait(32)
+		print("COMBAT_DBG coup ", i, " joueur=", player.global_position, " v=", player.velocity, " etat=", player.state, " hugo=", hugo.global_position, " lieu=", hugo.place, " chemin=", hugo.path.size() - hugo.path_i, " compte=", quests.etat.hugo.compte)
 	rep["hugo_chasseur"] = hugo.chasseur
 	rep["quete_hugo"] = quests.etat.hugo.duplicate()
 	await _wait(30)
