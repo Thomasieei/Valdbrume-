@@ -262,8 +262,7 @@ func _diag_anim() -> void:
 	print("DIAG racine=", v.anim.root_node, " -> ", v.anim.get_node_or_null(v.anim.root_node), " squelette=", sk.get_path(), " modele=", v.model.get_path())
 	var l1: AnimationLibrary = AnimBank.libs.ual1
 	print("DIAG noms ", l1.get_animation_list().slice(0, 12), " total ", l1.get_animation_list().size(), " index ", AnimBank.index.keys().slice(0, 6))
-	var a: Animation = l1.get_animation(l1.get_animation_list()[3])
-	for t in min(4, a.get_track_count()): print("DIAG piste ", a.track_get_path(t), " type ", a.track_get_type(t))
+	print("DIAG boucle Idle=", l1.get_animation("Idle").loop_mode if l1.has_animation("Idle") else "absente")
 	var psk: Skeleton3D = player.vis.skeleton
 	print("DIAG joueur joue=", player.vis.anim.is_playing(), " anim=", player.vis.anim.current_animation, " bras=", psk.get_bone_pose_rotation(psk.find_bone("upperarm_l")), " chemin=", psk.get_path())
 	for n in life.npcs.values():

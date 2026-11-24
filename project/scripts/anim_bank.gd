@@ -23,9 +23,12 @@ static func ensure() -> void:
 				var p := String(a.track_get_path(t))
 				if tt == Animation.TYPE_SCALE_3D: a.remove_track(t)
 				elif tt == Animation.TYPE_POSITION_3D and not (p.ends_with(":pelvis") or p.ends_with(":root")): a.remove_track(t)
-			a.loop_mode = Animation.LOOP_LINEAR if n.ends_with("_Loop") or n in ["Idle_Loop", "Walk_Loop", "Sword_Idle", "Dance_Loop", "Driving_Loop"] else Animation.LOOP_NONE
+			# l'import de Godot retire le suffixe « _Loop » (et règle la boucle) :
+			# on accepte les deux noms
+			if String(n) in ["Sword_Idle", "Fixing_Kneeling", "Counter_Idle", "Idle_Torch"]: a.loop_mode = Animation.LOOP_LINEAR
 			lib.add_animation(n, a)
-			if not index.has(n): index[n] = key + "/" + n
+			for alias in [String(n), String(n) + "_Loop"]:
+				if not index.has(alias): index[alias] = key + "/" + String(n)
 		libs[key] = lib
 
 static func attach(ap: AnimationPlayer) -> void:
