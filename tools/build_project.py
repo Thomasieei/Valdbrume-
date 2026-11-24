@@ -76,7 +76,12 @@ def islands():
             out.append(((a0+a1)/2, -0.5, (b0+b1)/2, a1-a0, 1.0, b1-b0))
     x0, z0, x1, z1 = streets.PLAZA
     out.append(((x0+x1)/2, -0.5, (z0+z1)/2, x1-x0, 1.0, z1-z0))      # place
-    out.append((0, 0.5, 0, 24, 1.0, 24))                              # socle (sans les escaliers)
+    # socle 24 x 24 (1 m) : cœur 20 x 20 + bords, ouvertures des escaliers (|axe| < 4)
+    out.append((0, 0.5, 0, 20, 1.0, 20))
+    for sgn in (-1, 1):
+        for a in (-8, 8):
+            out.append((sgn*11, 0.5, a, 2, 1.0, 8))    # bords est/ouest
+            out.append((a, 0.5, sgn*11, 8, 1.0, 2))    # bords nord/sud
     return out
 
 def ramps():
@@ -118,14 +123,17 @@ def viewpoints():
         dict(name='06_vieux_quartier_rue', eye=[-145, 1.7, -60], at=[-147, 6, -180]),
         dict(name='07_vieux_quartier_carrefour', eye=[-245, 1.7, -112], at=[-275, 5, -140]),
         dict(name='08_affaires_avenue', eye=[255, 1.7, 100], at=[258, 22, -20]),
-        dict(name='09_affaires_carrefour', eye=[160, 1.7, 115], at=[200, 18, 140]),
+        dict(name='09_affaires_carrefour', eye=[151, 1.7, 118], at=[262, 16, 129]),
         dict(name='10_avenue_sud', eye=[-100, 1.7, 133], at=[80, 10, 129]),
         dict(name='11_fond_de_rue_nord', eye=[-258, 1.7, -150], at=[-258, 8, -230]),
-        dict(name='12_trottoir_vitrines', eye=[-110, 1.7, 16.5], at=[-100, 3, 12.5]),
+        dict(name='12_trottoir_vitrines', eye=[-110, 1.7, 9.0], at=[-98, 3.5, 12.5]),
         dict(name='13_vue_haute_centre', eye=[120, 70, 160], at=[0, 0, 0]),
         dict(name='14_vue_haute_ouest', eye=[-150, 90, 260], at=[-200, 0, 0]),
         dict(name='15_fenetres_contreplongee', eye=[-30, 1.6, -15], at=[-35, 20, -14]),
         dict(name='16_rue_des_arches', eye=[150, 1.7, -100], at=[147, 8, 20]),
+        dict(name='18_place_socle', eye=[-26, 1.7, 22], at=[0, 2, 0]),
+        dict(name='19_vieux_quartier_mansardes', eye=[-300, 1.7, 126], at=[-340, 14, 118]),
+        dict(name='20_boulevard_loin', eye=[-360, 1.7, -3], at=[0, 8, 0]),
     ]
 
 def main():

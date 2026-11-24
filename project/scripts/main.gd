@@ -46,8 +46,8 @@ func _environment() -> void:
 	var sm := ProceduralSkyMaterial.new()
 	sm.sky_top_color = Color(0.30, 0.47, 0.72)
 	sm.sky_horizon_color = Color(0.80, 0.78, 0.74)
-	sm.ground_horizon_color = Color(0.62, 0.58, 0.54)
-	sm.ground_bottom_color = Color(0.28, 0.27, 0.27)
+	sm.ground_horizon_color = Color(0.74, 0.76, 0.80)
+	sm.ground_bottom_color = Color(0.55, 0.57, 0.60)
 	sm.sun_angle_max = 25.0
 	sm.sky_curve = 0.12
 	sky.sky_material = sm

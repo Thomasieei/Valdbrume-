@@ -5,7 +5,7 @@ extends CharacterBody3D
 const ANIM_DIR := "res://assets/human/anims/"
 @export var walk_speed := 1.7
 @export var run_speed := 4.6
-@export var sprint_speed := 6.6
+@export var sprint_speed := 6.0
 @export var jump_velocity := 5.2
 var gravity := 18.0
 var move_input := Vector2.ZERO          # fourni par les commandes tactiles / clavier
@@ -115,7 +115,7 @@ func _physics_process(dt: float) -> void:
 	elif s < 0.3: _play("Idle01", 0.25)
 	elif s < 2.6: _play("Walk01_Forward", 0.2, s / 1.6)
 	elif s < 5.6: _play("Run01_Forward", 0.2, s / 4.4)
-	else: _play("Sprint01_Forward", 0.2, s / 6.4)
+	else: _play("Sprint01_Forward", 0.2, s / 6.2)
 
 var _jump_req := false
 func request_jump() -> void:

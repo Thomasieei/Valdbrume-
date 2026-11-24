@@ -6,7 +6,8 @@ extends Node3D
 const GEN := "res://assets/city/gen/"
 var meta: Dictionary
 var mats := CityMaterials.new()
-var view_distance := 560.0
+var view_distance := 620.0
+var near_distance := 105.0
 
 func _ready() -> void:
 	meta = JSON.parse_string(FileAccess.get_file_as_string(GEN + "city.json"))
@@ -25,9 +26,16 @@ func _load_chunks() -> void:
 		var inst := ps.instantiate()
 		for mi in inst.find_children("*", "MeshInstance3D", true, false):
 			mats.apply(mi)
-			mi.visibility_range_end = view_distance
-			mi.visibility_range_end_margin = 30.0
-			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+			# version détaillée de près, version imprimée (très légère) de loin
+			if mi.name.begins_with("loin"):
+				mi.visibility_range_begin = near_distance
+				mi.visibility_range_begin_margin = 6.0
+				mi.visibility_range_end = view_distance
+				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			else:
+				mi.visibility_range_end = near_distance
+				mi.visibility_range_end_margin = 6.0
+				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		root.add_child(inst)
 
 func _load_skyline() -> void:

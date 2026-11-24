@@ -82,7 +82,7 @@ class Bucket:
         return (np.concatenate(s.v), np.concatenate(s.n), np.concatenate(s.uv), np.concatenate(s.c), np.concatenate(s.f))
     def uv2s(s): return np.concatenate(s.uv2)
 
-def place(buckets, name, x, y, z, ry, tint, lite=False):
+def place(buckets, name, x, y, z, ry, tint, lite=False, remap=None):
     R = rot(ry); T = np.array([x, y, z], np.float32)
     if not isinstance(tint[0], tuple): tint = (tint, tint, tint)
     if len(tint) == 2: tint = (tint[0], tint[1], tint[1])
@@ -98,15 +98,16 @@ def place(buckets, name, x, y, z, ry, tint, lite=False):
             t = np.array(t, np.float32) * np.array(MAT_BASE.get(mat, (1, 1, 1)), np.float32) * ENC
             col = np.tile(np.append(np.clip(t, 0, 1), 1.0).astype(np.float32), (len(V), 1))
             if mat in ACCENT_MATS: mat = 'MI_Trim'          # même texture : un seul matériau
+            if remap and mat in remap: mat = remap[mat]
         buckets.setdefault(mat, Bucket()).add(V, N, uv, col, f)
 
 ATLAS = None
 def impostor(buckets, name, x, y, z, ry, tint, pal_index):
     """façade imprimée : 2 triangles, UV dans l'atlas, teintes mur/pierre/accent."""
     c = ATLAS['cells'][name]; W, H = ATLAS['width'], ATLAS['height']
-    w = c['width']
+    w = c['width']; hh = c.get('height', 3)
     R = rot(ry); T = np.array([x, y, z], np.float32)
-    v = np.array([[-w/2, 0, 0], [w/2, 0, 0], [w/2, 3, 0], [-w/2, 3, 0]], np.float32) @ R.T + T
+    v = np.array([[-w/2, 0, 0], [w/2, 0, 0], [w/2, hh, 0], [-w/2, hh, 0]], np.float32) @ R.T + T
     n = np.tile(np.array([0, 0, 1], np.float32) @ R.T, (4, 1))
     u0, u1 = c['x']/W, (c['x']+c['w'])/W; v0, v1 = c['y']/H, (c['y']+c['h'])/H
     uv = np.array([[u0, v1], [u1, v1], [u1, v0], [u0, v0]], np.float32)
@@ -124,37 +125,46 @@ def quad(buckets, mat, cx, y, cz, w, d, uvscale, normal_up=True, color=(0.5, 0.5
     c = np.tile(np.array(tuple(color) + (1,), np.float32), (4, 1))
     buckets.setdefault(mat, Bucket()).add(v, n, uv, c, f)
 
-def write_glb(path, buckets, name='chunk'):
-    """écrit un glb : un mesh, une primitive par matériau."""
+def write_glb(path, buckets, name='chunk', origin=(0, 0, 0), extra=()):
+    """écrit un glb : un nœud par maillage (positions relatives à 'origin'),
+    une primitive par matériau. extra : autres (nom, buckets) dans le même fichier."""
     import pygltflib as G
-    gl = G.GLTF2(); gl.scenes = [G.Scene(nodes=[0])]; gl.scene = 0
-    gl.nodes = [G.Node(mesh=0, name=name)]
-    blob = bytearray(); prims = []; mats = []
+    gl = G.GLTF2(); gl.scene = 0
+    blob = bytearray(); mats = {}; gl.materials = []
+    org = np.array(origin, np.float32)
     def view(data, target):
         nonlocal blob
         while len(blob) % 4: blob.append(0)
         off = len(blob); blob += data
         gl.bufferViews.append(G.BufferView(buffer=0, byteOffset=off, byteLength=len(data), target=target))
         return len(gl.bufferViews) - 1
-    for mat, b in sorted(buckets.items()):
-        V, N, UV, C, F = b.arrays()
-        nl = np.linalg.norm(N, axis=1, keepdims=True); N = N / np.maximum(nl, 1e-6)
-        mi = len(mats); mats.append(G.Material(name=mat, doubleSided=False))
-        acc = {}
-        cols = [('POSITION', V, 'VEC3'), ('NORMAL', N.astype(np.float32), 'VEC3'), ('TEXCOORD_0', UV, 'VEC2'), ('COLOR_0', C, 'VEC4')]
-        if mat == 'MI_Facade': cols.append(('TEXCOORD_1', b.uv2s(), 'VEC2'))
-        for key, arr, typ in cols:
-            arr = np.ascontiguousarray(arr, np.float32)
-            bv = view(arr.tobytes(), G.ARRAY_BUFFER)
-            a = G.Accessor(bufferView=bv, componentType=G.FLOAT, count=len(arr), type=typ)
-            if key == 'POSITION': a.min = arr.min(0).tolist(); a.max = arr.max(0).tolist()
-            gl.accessors.append(a); acc[key] = len(gl.accessors) - 1
-        idx = np.ascontiguousarray(F.reshape(-1), np.uint32)
-        bv = view(idx.tobytes(), G.ELEMENT_ARRAY_BUFFER)
-        gl.accessors.append(G.Accessor(bufferView=bv, componentType=G.UNSIGNED_INT, count=len(idx), type='SCALAR'))
-        prims.append(G.Primitive(attributes=G.Attributes(**acc), indices=len(gl.accessors)-1, material=mi))
-    gl.meshes = [G.Mesh(primitives=prims, name=name)]
-    gl.materials = mats
+    nodes = []
+    for mname, bk in [(name, buckets)] + list(extra):
+        prims = []
+        for mat, b in sorted(bk.items()):
+            V, N, UV, C, F = b.arrays()
+            V = V - org
+            nl = np.linalg.norm(N, axis=1, keepdims=True); N = N / np.maximum(nl, 1e-6)
+            if mat not in mats:
+                mats[mat] = len(gl.materials); gl.materials.append(G.Material(name=mat, doubleSided=False))
+            acc = {}
+            cols = [('POSITION', V, 'VEC3'), ('NORMAL', N.astype(np.float32), 'VEC3'), ('TEXCOORD_0', UV, 'VEC2'), ('COLOR_0', C, 'VEC4')]
+            if mat == 'MI_Facade': cols.append(('TEXCOORD_1', b.uv2s(), 'VEC2'))
+            for key, arr, typ in cols:
+                arr = np.ascontiguousarray(arr, np.float32)
+                bv = view(arr.tobytes(), G.ARRAY_BUFFER)
+                acc_ = G.Accessor(bufferView=bv, componentType=G.FLOAT, count=len(arr), type=typ)
+                if key == 'POSITION': acc_.min = arr.min(0).tolist(); acc_.max = arr.max(0).tolist()
+                gl.accessors.append(acc_); acc[key] = len(gl.accessors) - 1
+            idx = np.ascontiguousarray(F.reshape(-1), np.uint32)
+            bv = view(idx.tobytes(), G.ELEMENT_ARRAY_BUFFER)
+            gl.accessors.append(G.Accessor(bufferView=bv, componentType=G.UNSIGNED_INT, count=len(idx), type='SCALAR'))
+            prims.append(G.Primitive(attributes=G.Attributes(**acc), indices=len(gl.accessors)-1, material=mats[mat]))
+        if not prims: continue
+        gl.meshes.append(G.Mesh(primitives=prims, name=mname))
+        gl.nodes.append(G.Node(mesh=len(gl.meshes)-1, name=mname, translation=[float(o) for o in origin]))
+        nodes.append(len(gl.nodes)-1)
+    gl.scenes = [G.Scene(nodes=nodes)]
     gl.buffers = [G.Buffer(byteLength=len(blob))]
     gl.set_binary_blob(bytes(blob))
     gl.save_binary(path)

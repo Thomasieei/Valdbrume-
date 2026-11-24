@@ -12,8 +12,9 @@ BRICK = {
     'sombre':  (0.58, 0.52, 0.50),
     'creme':   (1.45, 1.32, 1.12),   # brique pâle / pierre crème
     'sable':   (1.30, 1.15, 0.92),
-    'gris':    (0.95, 0.95, 1.00),
+    'gris':    (1.02, 0.99, 0.95),   # gris chaud (pierre de taille)
     'ocre':    (1.20, 0.95, 0.70),
+    'ivoire':  (1.22, 1.16, 1.04),
 }
 TRIM = {
     'pierre':  (1.00, 1.00, 1.00),
@@ -231,6 +232,25 @@ class City:
         """pose un ou deux modules d'étage, renvoie le nombre de modules 2 m consommés."""
         ry = f['ry']
         v = l.var
+        # étages « nobles » : 1er étage et dernier étage traités différemment
+        # (vraie hiérarchie de façade : socle, étage noble, corps, attique)
+        feat = None
+        if l.floors >= 3:
+            if l.style == 'pierre':
+                feat = 'Brick_Inset_Window_Curved' if k == 0 else ('Brick_Inset_Window_Curved_Small' if k == l.floors-1 else None)
+            elif l.style == 'verre' and k == 0:
+                feat = 'Metal_Window'
+            elif l.style == 'rouge' and k == l.floors-1 and v % 2 == 0:
+                feat = 'Brick_Inset_Window_Curved_Small'
+        if feat and 1 <= i and i + 1 <= n - 2 and (i - 1) % 2 == 0:
+            x, z = _pos(f, None, i*2 + 2)
+            s.put(feat, x, y, z, ry, tint)
+            return 2
+        if l.style == 'rouge' and k == 0:
+            x, z = _pos(f, None, i*2 + 1)
+            if (i == 0 or i == n-1) and n >= 5: s.put(st['plain'], x, y, z, ry, tint)
+            else: s.put('Brick_Window_Trim', x, y, z, ry, tint)
+            return 1
         # baies larges (4 m) si le style en a et la place
         if st['wide'] and (l.style == 'pale' or v % 2 == 1) and i + 1 < n and (i % 2 == 0):
             m, w = st['wide'][(v + (1 if k == l.floors-1 else 0)) % len(st['wide'])]

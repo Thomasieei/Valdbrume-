@@ -7,14 +7,17 @@ from PIL import Image
 import bake
 TEX = os.path.join(bake.ROOT, 'project', 'assets', 'city', 'textures') + '/'
 
-PX = 128                     # pixels par mètre
+PX = 112                     # pixels par mètre
 PAD = 16                     # marge (contenu continu : modules répétés autour)
-IMP = [  # (module, largeur)
-    ('Brick_Window_Trim_Single', 2), ('Brick_Window_Trim', 2), ('Brick_Window_Square_Single', 2),
-    ('Trim_Window', 2), ('Metal_FullWindow', 2), ('Metal_Window_Half', 2),
-    ('Brick_Plain_3', 2), ('Trim_Plain_3', 2), ('Metal_Plain_3', 2),
-    ('Brick_Inset_Window', 4), ('Brick_Inset_Window_Curved', 4), ('Brick_RedWhite_DoubleWindow', 4),
-    ('Brick_Inset_Window_Curved_Small', 4), ('Metal_Window', 4),
+IMP = [  # (module, largeur, hauteur)
+    ('Brick_Window_Trim_Single', 2, 3), ('Brick_Window_Trim', 2, 3), ('Brick_Window_Square_Single', 2, 3),
+    ('Trim_Window', 2, 3), ('Metal_FullWindow', 2, 3), ('Metal_Window_Half', 2, 3),
+    ('Brick_Plain_3', 2, 3), ('Trim_Plain_3', 2, 3), ('Metal_Plain_3', 2, 3),
+    ('Trim_FirstFloor_Window_001', 2, 3), ('Metal_FirstFloor_Window', 2, 3), ('Metal_FirstFloor_Wall', 2, 3),
+    ('DoorFrame_Trim', 2, 3), ('DoorFrame_Metal_Single', 2, 3), ('DoorFrame_Wooden', 2, 3), ('Brick_BottomTrim', 2, 3),
+    ('Brick_Plain_1', 2, 1), ('Metal_FirstFloor_Wall_1', 2, 1), ('Metal_Plain_1', 2, 1),
+    ('Brick_Inset_Window', 4, 3), ('Brick_Inset_Window_Curved', 4, 3), ('Brick_RedWhite_DoubleWindow', 4, 3),
+    ('Brick_Inset_Window_Curved_Small', 4, 3), ('Metal_Window', 4, 3),
 ]
 # classes de teinte : 1 = mur (brique), 2 = pierre/béton, 3 = accent (cadres, vitrines)
 CLASS = {'MI_RedBrick': 1, 'MI_RedBrick_Pale': 1, 'MI_InteriorWall': 1,
@@ -26,7 +29,7 @@ TEXF = {'MI_RedBrick': 'T_RedBrick_BaseColor.png', 'MI_RedBrick_Pale': 'T_RedBri
         'MI_Trim_Dark': 'T_Trim_BaseColor.png', 'MI_Trim_Green': 'T_Trim_BaseColor.png',
         'MI_Trim_MetalConcrete': 'T_MetalConcrete_BaseColor.png', 'MI_Ornaments': 'T_Ornaments_BaseColor.png',
         'MI_Concrete': 'T_Concrete_BaseColor.png'}
-def _raster(name, w, cw, ch):
+def _raster(name, w, hh, cw, ch):
     """petit rasteriseur orthographique (numpy) : vue de face du module répété
     autour de lui. Renvoie albedo, relief z, normales, classe, intérieur, uv pièce."""
     alb = np.zeros((ch, cw, 3), np.float32); zb = np.full((ch, cw), -9.0, np.float32)
@@ -38,11 +41,11 @@ def _raster(name, w, cw, ch):
         if f not in texc: texc[f] = np.asarray(Image.open(TEX + f).convert('RGB'), np.float32) / 255.0
         return texc[f]
     for dx in (-w, 0, w):
-        for dy in (-3, 0, 3):
+        for dy in (-hh, 0, hh):
             for mat, v, n, uv, f in bake.geo(name):
                 V = v + np.array([dx, dy, 0], np.float32)
                 px = (V[:, 0] + cw/PX/2) * PX - 0.5
-                py = (1.5 + ch/PX/2 - V[:, 1]) * PX - 0.5
+                py = (hh/2 + ch/PX/2 - V[:, 1]) * PX - 0.5
                 T = tex(TEXF[mat]) if mat in TEXF else None
                 base = np.array(BASE.get(mat, (1, 1, 1)), np.float32)
                 for t in f:
@@ -85,17 +88,17 @@ def bake_atlas(out_dir):
     cells = {}
     W = 2048
     x = y = 0; rowh = 3*PX + 2*PAD
-    for name, w in IMP:
+    for name, w, hh in IMP:
         cw = w*PX + 2*PAD
         if x + cw > W: x = 0; y += rowh
-        cells[name] = dict(x=x+PAD, y=y+PAD, w=w*PX, h=3*PX, width=w)
+        cells[name] = dict(x=x+PAD, y=y+PAD, w=w*PX, h=hh*PX, width=w, height=hh)
         x += cw
     H = y + rowh; H = (H + 3)//4*4
     A = np.zeros((H, W, 4), np.uint8); N = np.zeros((H, W, 4), np.uint8); R = np.zeros((H, W, 4), np.uint8)
-    for name, w in IMP:
+    for name, w, hh in IMP:
         c = cells[name]
         cw, ch = c['w'] + 2*PAD, c['h'] + 2*PAD
-        alb, z, nrm, cls, inte, room = _raster(name, w, cw, ch)
+        alb, z, nrm, cls, inte, room = _raster(name, w, hh, cw, ch)
         z = np.where(z < -5, -0.3, z)
         ao = np.clip(1.0 + z*2.2, 0.45, 1.0)          # creux plus sombres
         sl = (slice(c['y']-PAD, c['y']-PAD+ch), slice(c['x']-PAD, c['x']-PAD+cw))
