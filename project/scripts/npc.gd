@@ -71,12 +71,11 @@ func react(anim_name: String, duration: float, look_at_pos := Vector3.ZERO) -> v
 	if look_at_pos != Vector3.ZERO: face_target = look_at_pos
 	vis.play(anim_name, 0.2, 1.0, true)
 
-## l'habitant s'est éveillé : tenue de chasseur, épée longue dans le dos
+## l'habitant s'est éveillé : tenue de chasseur ; son épée apparaît quand il combat
 func devient_chasseur(accent := Color(0.25, 0.6, 1.0)) -> void:
 	if chasseur: return
 	chasseur = true
 	vis.hunter_look(accent)
-	vis.set_back_weapon("epee_lourde")
 	add_to_group("combattants")
 	label.text = "%s\nchasseur · rang E" % vis.data.nom
 
@@ -92,7 +91,6 @@ func entre_en_combat(v: bool) -> void:
 	elif not v and _arme_en_main:
 		_arme_en_main = false
 		vis.set_weapon("")
-		vis.set_back_weapon("epee_lourde")
 
 func _combat(dt: float) -> void:
 	cd_combat -= dt

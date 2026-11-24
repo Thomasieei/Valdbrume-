@@ -151,8 +151,7 @@ func set_weapon(kind: String) -> void:
 	for e in extras:
 		if is_instance_valid(e): e.queue_free()
 	extras.clear()
-	if kind == "arc":
-		extras.append(_prop("HumanArcher_Quiver", "spine_03", DOS.carquois[0], DOS.carquois[1]))
+	# comme les chasseurs de Solo Leveling, les armes sortent de l'inventaire : rien dans le dos
 	if kind == "magie":
 		# l'énergie du chasseur au creux de la main
 		var att := BoneAttachment3D.new(); att.bone_name = "hand_r"; skeleton.add_child(att)
