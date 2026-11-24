@@ -75,6 +75,6 @@ func _boum(p: Vector3) -> void:
 	var parent := get_parent()
 	var k := "Radial_01" if kind == "sort" else "Radial_02"
 	var col := couleur if kind == "sort" else "Electric"
-	Fx.spawn(parent, col, k, Transform3D(Basis(), p - Vector3(0, 0.1, 0)), (1.5 if kind == "sort" else 0.8) * taille, 1.6)
+	Fx.spawn(parent, col, k, Transform3D(Basis(), p - Vector3(0, 0.1, 0)), (1.0 if kind == "sort" else 0.7) * taille, 1.6)
 	Fx.flash(parent, p, Fx.TEINTE[col], 4.0 * taille, 7.0)
 	queue_free()

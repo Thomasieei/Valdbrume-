@@ -276,9 +276,9 @@ func _physics_process(dt: float) -> void:
 			if state == S.LAND and state_t > 0.25: state = S.LOCO
 			if state == S.EMOTE and state_t > state_len: state = S.LOCO
 		S.ATTACK:
-			target = hv.move_toward(Vector3.ZERO, 30.0 * dt) if is_on_floor() else hv
-			# petite avancée au moment du coup
-			if state_t < 0.18 and is_on_floor(): target += Basis(Vector3.UP, vis.rotation.y) * Vector3(0, 0, 1) * 2.2
+			# petite avancée au moment du coup (vitesse fixe, jamais cumulée), puis arrêt net
+			if state_t < 0.18 and is_on_floor(): target = Basis(Vector3.UP, vis.rotation.y) * Vector3(0, 0, 1) * 2.2
+			else: target = hv.move_toward(Vector3.ZERO, 30.0 * dt) if is_on_floor() else hv
 			if state_t > state_len * 0.55 and queued != "":
 				var list: Array = COMBOS[style()][queued]
 				combo_i = (combo_i + 1) % list.size()

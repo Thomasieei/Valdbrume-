@@ -95,6 +95,7 @@ func _build_occluders() -> void:
 var lamps: Array = []           # positions des lanternes
 var lights: Array = []          # quelques vraies lumières, données aux lanternes les plus proches
 var _lt := 0.0
+var nuit := 0.0                 # donné par le cycle jour / nuit
 
 func _build_lamps() -> void:
 	if not meta.has("lampes"): return
@@ -148,7 +149,7 @@ func _process(dt: float) -> void:
 	_lt += dt
 	if _lt < 0.3 or lamps.is_empty(): return
 	_lt = 0.0
-	var n: float = RenderingServer.global_shader_parameter_get("nuit")
+	var n := nuit
 	var cam := get_viewport().get_camera_3d()
 	if cam == null: return
 	if n < 0.05:

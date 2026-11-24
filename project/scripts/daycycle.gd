@@ -9,6 +9,7 @@ var sun: DirectionalLight3D
 var sky: ProceduralSkyMaterial
 var _t := 99.0
 var force_hour := -1.0          # pour les captures
+var city: Node
 
 const DAY_TOP := Color(0.27, 0.44, 0.72)
 const DAY_HOR := Color(0.90, 0.80, 0.68)
@@ -28,6 +29,7 @@ func apply(h: float) -> void:
 	var n := 1.0 - smoothstep(5.6, 7.2, h) if h < 12.0 else smoothstep(19.8, 21.6, h)
 	var gold := clampf(1.0 - elev / 16.0, 0.0, 1.0) * (1.0 - n)   # lumière rasante dorée
 	RenderingServer.global_shader_parameter_set("nuit", n)
+	if city: city.nuit = n
 	if n < 0.55:
 		sun.rotation_degrees = Vector3(-max(elev, 4.0), -50.0 - 140.0 * clampf(f, 0.0, 1.0), 0.0)
 		sun.light_color = Color(1.0, 0.86, 0.68).lerp(Color(1.0, 0.62, 0.36), gold * 0.8)

@@ -126,7 +126,7 @@ func _on_coup(_style: String) -> void:
 func _eveil_hugo() -> void:
 	var h: Npc = life.npcs.hugo
 	h.react("Celebration", 3.0, player.global_position)
-	Fx.spawn(get_parent(), "Electric", "Radial_02", Transform3D(Basis(), h.global_position), 2.4, 3.0)
+	Fx.spawn(get_parent(), "Mystic", "Radial_02", Transform3D(Basis(), h.global_position), 2.4, 3.0)
 	Fx.flash(get_parent(), h.global_position + Vector3(0, 1.2, 0), Color(0.45, 0.7, 1.0), 8.0, 12.0, 1.2)
 	h.devient_chasseur()
 	if not "chasseur novice" in life.mem.hugo.souvenirs: life.mem.hugo.souvenirs.append("chasseur novice")

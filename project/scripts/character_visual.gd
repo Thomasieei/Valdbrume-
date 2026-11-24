@@ -156,7 +156,7 @@ func set_weapon(kind: String) -> void:
 	if kind == "magie":
 		# l'énergie du chasseur au creux de la main
 		var att := BoneAttachment3D.new(); att.bone_name = "hand_r"; skeleton.add_child(att)
-		var f := Fx.spawn(att, "Mystic", "02", Transform3D(Basis(), Vector3(0.0, 0.1, 0.0)), 0.3, -1.0)
+		var f := Fx.spawn(att, "Mystic", "01", Transform3D(Basis(), Vector3(0.0, 0.06, 0.0)), 0.32, -1.0)
 		var l := OmniLight3D.new(); l.light_color = Fx.TEINTE.Mystic; l.light_energy = 0.9; l.omni_range = 2.2
 		att.add_child(l); extras.append(att)
 		return

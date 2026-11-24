@@ -38,7 +38,7 @@ func _ready() -> void:
 	life.quetes = quests
 	day = Node.new(); day.name = "Cycle"
 	day.set_script(load("res://scripts/daycycle.gd"))
-	day.life = life; day.env = env; day.sun = sun; day.sky = env.sky.sky_material
+	day.life = life; day.env = env; day.sun = sun; day.sky = env.sky.sky_material; day.city = city
 	add_child(day)
 	day.apply(life.hour())
 	player.ko.connect(_ko)
