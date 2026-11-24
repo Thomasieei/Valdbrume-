@@ -16,9 +16,10 @@ jobs:
         run: |
           cd a
           for f in *.zip; do echo "== $f"; zipinfo -1 "$f" | grep -vE '/$' | head -60; done
-      - name: Recherche GitHub (personnages)
+      - name: Dépôts publics contenant les personnages Quaternius
         env: { GH_TOKEN: '${{ github.token }}' }
         run: |
-          for q in "filename:Superhero_Male" "filename:Superhero_Female" "filename:Regular_Male" "filename:Teen_Female" "Universal Base Characters quaternius" "filename:Hair_Buzzed" "filename:Hair_Long extension:gltf"; do
-            sleep 8; echo "== code: $q"; gh api -X GET search/code -f q="$q" -f per_page=12 --jq '.items[] | "\(.repository.full_name) \(.path)"' || true
+          for r in stamps9k/milonga-studio tommy-xr/functor vitae0/games prabinpebam/pose-n-composition IdehistorieCases/Cases-GUI BoQsc/quaternius-ragdoll-walkthrough NoLimitNexus/game-models jesta88/marrow aswinkumarks/IONFALL DyingStar-game/DyingStar; do
+            echo "== $r"
+            gh api "repos/$r/git/trees/HEAD?recursive=1" --jq '.tree[] | select(.type=="blob") | select(.path|test("(?i)superhero|regular_|teen_|hair_|ranger|peasant|ual[12]|universal|base_char|mannequin|quaternius")) | "\(.size) \(.path)"' 2>&1 | head -40
           done
