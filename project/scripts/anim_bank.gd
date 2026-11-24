@@ -2,13 +2,15 @@
 ## Universal Animation Library 1 et 2 (254 animations, même squelette que les
 ## personnages). On garde les rotations de tous les os et le déplacement du
 ## bassin seulement : les animations s'adaptent ainsi à chaque morphologie.
-extends Node
+class_name AnimBank
+extends RefCounted
 
 const LIBS := {"ual1": "res://assets/characters/anims/UAL1.glb", "ual2": "res://assets/characters/anims/UAL2.glb"}
-var libs := {}            # nom -> AnimationLibrary nettoyée
-var index := {}           # nom d'animation -> "lib/nom"
+static var libs := {}            # nom -> AnimationLibrary nettoyée
+static var index := {}           # nom d'animation -> "lib/nom"
 
-func _ready() -> void:
+static func ensure() -> void:
+	if not libs.is_empty(): return
 	for key in LIBS:
 		var src: AnimationLibrary = load(LIBS[key])
 		if src == null:
@@ -26,15 +28,17 @@ func _ready() -> void:
 			if not index.has(n): index[n] = key + "/" + n
 		libs[key] = lib
 
-func attach(ap: AnimationPlayer) -> void:
+static func attach(ap: AnimationPlayer) -> void:
+	ensure()
 	for key in libs:
 		if not ap.has_animation_library(key): ap.add_animation_library(key, libs[key])
 
-func path(n: String) -> String:
-	return index.get(n, "")
+static func path(n: String) -> String:
+	ensure()
+	return String(index.get(n, ""))
 
-func length(n: String) -> float:
+static func length(n: String) -> float:
 	var p := path(n)
 	if p == "": return 0.0
 	var parts := p.split("/")
-	return libs[parts[0]].get_animation(parts[1]).length
+	return (libs[parts[0]] as AnimationLibrary).get_animation(parts[1]).length
