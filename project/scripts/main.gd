@@ -208,6 +208,7 @@ func _capture_life(cam: Camera3D, out: String, report: Array) -> void:
 		[19 * 60 + 20, "banc_place_s", Vector3(3, 1.6, 6), "44_soir_banc_sofia_karim"],
 		[21 * 60 + 30, "gare", Vector3(6, 1.7, 4), "45_nuit_gare_marc"],
 	]
+	for n in life.npcs.values(): n.place = ""
 	for s in shots:
 		life.minute = s[0]
 		life.warp()
@@ -217,6 +218,20 @@ func _capture_life(cam: Camera3D, out: String, report: Array) -> void:
 		cam.current = true
 		cam.global_position = at + s[2]; cam.look_at(at + Vector3(0, 1.1, 0))
 		await _shot(out, s[3], report)
+	# l'agression du soir dans le Passage des Lanternes (le joueur est loin)
+	life.minute = 21 * 60
+	life.warp()
+	life._start_agression()
+	var spot: Vector3 = life._place_pos("passage_lanternes")
+	var theo: Npc = life.npcs.theo
+	theo.visible = true; theo.hidden_inside = false
+	theo.position = spot + Vector3(0, 0, 2.5)
+	theo.path = PackedVector3Array([spot + Vector3(0, 0, 1.0)]); theo.path_i = 0
+	player.position = Vector3(0, 0.3, 34)
+	cam.current = true
+	cam.global_position = spot + Vector3(4.5, 1.8, 6.0); cam.look_at(spot + Vector3(0, 1.0, 0))
+	for i in 270: await get_tree().process_frame
+	await _shot(out, "46_soir_agression_theo", report)
 
 ## simulation d'une journée complète (sans rendu) : chacun atteint-il ses lieux ?
 func _simulate_life() -> void:

@@ -90,7 +90,8 @@ func _process(dt: float) -> void:
 		var tgt := path[path_i]
 		var to := tgt - position
 		var flat := Vector3(to.x, 0, to.z)
-		var step := speed * dt
+		# hors de vue du joueur : on accélère (le trajet reste cohérent avec l'horloge)
+		var step := speed * dt * (life.offscreen_factor() if d > 90.0 or cam == null else 1.0)
 		if flat.length() <= step:
 			position = tgt; path_i += 1
 			if path_i >= path.size(): life.npc_arrived(self)

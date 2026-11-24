@@ -62,6 +62,8 @@ func setup(city_meta: Dictionary, p_player: Node3D) -> void:
 # ------------------------------------------------------------ horloge
 func hour() -> float: return float(minute) / 60.0
 
+func offscreen_factor() -> float: return max(6.0, minutes_per_second * 6.0)
+
 func clock_text() -> String:
 	var jours := ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 	return "%s %02d:%02d" % [jours[(day - 1) % 7], minute / 60, minute % 60]
@@ -127,11 +129,23 @@ func _send(id: String, e: Array) -> void:
 	n.go_to(p, float(e[3]))
 
 func npc_arrived(n: Npc) -> void:
-	var at: Dictionary = places[n.place]
+	var at: Dictionary = places[n.place].duplicate()
 	var a := String(n.activity.get("anim", ""))
 	var shown := a if not a.begins_with("@") else ("Idle_Loop" if a == "@service" else "Sword_Idle")
+	# lieu déjà occupé (client chez un commerçant, ami sur un banc) : on se place à côté
+	var others := 0
+	for id in npcs:
+		var o: Npc = npcs[id]
+		if o != n and o.place == n.place and o.arrived() and not o.hidden_inside: others += 1
+	if others > 0 and shown != "":
+		var rot := deg_to_rad(float(at.rot))
+		var fwd := Vector3(sin(rot), 0, cos(rot))
+		var side := Vector3(fwd.z, 0, -fwd.x)
+		var seat := shown.begins_with("Sitting")
+		var off := side * (0.75 * others) if seat else fwd * 1.3 + side * (0.5 * (others - 1))
+		at.pos = [at.pos[0] + off.x, at.pos[1], at.pos[2] + off.z]
+		if not seat: at.rot = rad_to_deg(rot + PI)
 	n.do_activity({"anim": shown, "lieu": n.place}, at)
-	if a == "": n.do_activity({"anim": ""}, at)
 
 ## place chaque habitant directement à l'endroit où il doit être à cette heure
 func warp() -> void:
