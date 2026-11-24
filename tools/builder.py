@@ -15,6 +15,8 @@ BRICK = {
     'gris':    (1.02, 0.99, 0.95),   # gris chaud (pierre de taille)
     'ocre':    (1.20, 0.95, 0.70),
     'ivoire':  (1.22, 1.16, 1.04),
+    'brunpierre': (0.66, 0.50, 0.42),   # « brownstone »
+    'ardoise': (0.68, 0.72, 0.80),      # pierre gris-bleu
 }
 TRIM = {
     'pierre':  (1.00, 1.00, 1.00),
