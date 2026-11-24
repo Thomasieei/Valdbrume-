@@ -1,0 +1,30 @@
+name: Rapatriement des assets personnages (CC0)
+on: { workflow_dispatch: {}, push: { paths: ['.github/workflows/vendor-assets.yml'] } }
+permissions: { contents: write }
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Téléchargement
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          set -e
+          D=vendor/quaternius
+          mkdir -p $D/base_characters $D/animations
+          # Personnages de base (Superhero homme/femme, coiffures, textures) — copie CC0 publique
+          R=prabinpebam/pose-n-composition; P=public/models/external/quaternius-universal-base
+          gh api "repos/$R/contents/$P" --jq '.[] | select(.type=="file") | .name' > /tmp/list.txt
+          while read f; do curl -fsSL -o "$D/base_characters/$f" "https://raw.githubusercontent.com/$R/HEAD/$P/$f"; done < /tmp/list.txt
+          gh api "repos/$R/license" --jq '.license.spdx_id' > $D/base_characters/SOURCE_REPO_LICENSE.txt 2>/dev/null || echo "none" > $D/base_characters/SOURCE_REPO_LICENSE.txt
+          # Bibliothèques d'animations (UAL1 + UAL2 complètes, CC0)
+          R2="DyingStar-game/DyingStar"; P2="assets/Universal%20Animation%20Library"
+          for f in "Unreal-Godot/UAL1.glb" "Unreal-Godot/UAL2.glb" "License.txt" "README.txt" "Female%20Mannequin/Unreal-Godot/Mannequin_F.glb"; do
+            n=$(basename "$f" | sed 's/%20/_/g'); curl -fsSL -o "$D/animations/$n" "https://raw.githubusercontent.com/$R2/HEAD/$P2/$f"
+          done
+          ls -la $D/base_characters $D/animations
+          file $D/animations/*.glb
+      - name: Ajout au dépôt
+        run: |
+          git config user.name "ci"; git config user.email "ci@local"
+          git add vendor && git commit -qm "Assets personnages Quaternius (CC0) : bases, coiffures, UAL1/UAL2" && git push
