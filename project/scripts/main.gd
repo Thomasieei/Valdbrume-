@@ -46,6 +46,7 @@ func _ready() -> void:
 	if "--capture" in args: _capture.call_deferred()
 	elif "--traverse" in args: _traverse.call_deferred()
 	elif "--vie" in args: _simulate_life.call_deferred()
+	elif "--diag-anim" in args: _diag_anim.call_deferred()
 
 func _environment() -> void:
 	var we := WorldEnvironment.new()
@@ -248,6 +249,24 @@ func _simulate_life() -> void:
 	var f := FileAccess.open(out.path_join("vie_journee.json"), FileAccess.WRITE)
 	f.store_string(JSON.stringify(res, "  ")); f.close()
 	print("VIE bloques=", res.bloques.size(), " evenements=", life.log_lines.size())
+	get_tree().quit()
+
+func _diag_anim() -> void:
+	await _wait(3)
+	var v := CharacterVisual.new(); add_child(v); v.setup("lea")
+	v.play("Idle_Loop", 0.0)
+	await _wait(10)
+	var sk := v.skeleton
+	var pi := sk.find_bone("upperarm_l")
+	print("DIAG lea joue=", v.anim.is_playing(), " anim=", v.anim.current_animation, " pos=", v.anim.current_animation_position, " bras=", sk.get_bone_pose_rotation(pi), " repos=", sk.get_bone_rest(pi).basis.get_rotation_quaternion())
+	print("DIAG racine=", v.anim.root_node, " -> ", v.anim.get_node_or_null(v.anim.root_node), " squelette=", sk.get_path(), " modele=", v.model.get_path())
+	var a: Animation = AnimBank.libs.ual1.get_animation("Idle_Loop")
+	for t in min(4, a.get_track_count()): print("DIAG piste ", a.track_get_path(t), " type ", a.track_get_type(t))
+	var psk: Skeleton3D = player.vis.skeleton
+	print("DIAG joueur joue=", player.vis.anim.is_playing(), " anim=", player.vis.anim.current_animation, " bras=", psk.get_bone_pose_rotation(psk.find_bone("upperarm_l")), " chemin=", psk.get_path())
+	for n in life.npcs.values():
+		print("DIAG pnj ", n.id, " joue=", n.vis.anim.is_playing(), " anim=", n.vis.anim.current_animation, " mode=", n.vis.anim.callback_mode_process, " bras=", n.vis.skeleton.get_bone_pose_rotation(n.vis.skeleton.find_bone("upperarm_l")))
+		break
 	get_tree().quit()
 
 func _traverse() -> void:

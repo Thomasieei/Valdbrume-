@@ -53,6 +53,8 @@ jobs:
             if [ -n "$out" ]; then echo "== $f"; echo "$out"; err=1; fi
           done
           exit $err
+      - name: Diagnostic des animations
+        run: timeout 120 ~/godot/godot --headless --path project -- --diag-anim 2>&1 | grep -E "DIAG|ERROR|SCRIPT" | head -30
       - name: Traversée du boulevard (physique)
         run: timeout 900 ~/godot/godot --headless --path project --fixed-fps 60 -- --traverse 2>&1 | grep -E "TRAVERSEE|ERROR|SCRIPT" | head -30
       - name: Vie de la ville (une journée simulée)
