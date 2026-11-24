@@ -56,8 +56,9 @@ func _environment() -> void:
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_sky_contribution = 1.0
-	env.ambient_light_energy = 0.62
+	env.ambient_light_color = Color(0.66, 0.62, 0.58)
+	env.ambient_light_sky_contribution = 0.55
+	env.ambient_light_energy = 0.7
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
 	env.tonemap_exposure = 1.12

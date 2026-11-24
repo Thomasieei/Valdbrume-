@@ -233,11 +233,6 @@ def build_plaza(c, tile):
         bx(-CAUSE, 0.0, min(sgn*B, sgn*(B+1)), CAUSE, DECK/2, max(sgn*B, sgn*(B+1)))
         bx(min(sgn*B, sgn*(B+1)), 0.0, -CAUSE, max(sgn*B, sgn*(B+1)), DECK/2, CAUSE)
     # jardinières aux 4 angles de l'anneau, bornes aux entrées de chaussée
-    for sx in (-1, 1):
-        for sz in (-1, 1):
-            c.put('Prop_Planter_Single', sx*23, 0, sz*23, 0, T)
-            c.put('Prop_Planter_Single', sx*23, 0, sz*(23 - 3.2), 0, T)
-            c.put('Prop_Planter_Single', sx*(23 - 3.2), 0, sz*23, 0, T)
     for k in range(-5, 6, 2):
         c.put('Prop_Bollard', k, 0, z0 + 3.6, 0, T); c.put('Prop_Bollard', k, 0, z1 - 3.6, 0, T)
         c.put('Prop_Bollard', x0 + 3.6, 0, k, 0, T); c.put('Prop_Bollard', x1 - 3.6, 0, k, 0, T)

@@ -187,5 +187,14 @@ def box(buckets, mat, x0, y0, z0, x1, y1, z1, uvscale=2.0, color=(0.5, 0.5, 0.5)
         f = np.array([[0, 1, 2], [0, 2, 3]], np.uint32)
         buckets.setdefault(mat, Bucket()).add(v, np.tile(np.array(n, np.float32), (4, 1)), uv, np.tile(c, (4, 1)), f)
 
+def door_back(buckets, x, y, z, ry):
+    """hall d'entrée factice derrière une porte (2 triangles, shader d'intérieur)."""
+    R = rot(ry); T = np.array([x, y, z], np.float32)
+    v = np.array([[-1.0, 0.0, -0.22], [1.0, 0.0, -0.22], [1.0, 2.95, -0.22], [-1.0, 2.95, -0.22]], np.float32) @ R.T + T
+    n = np.tile(np.array([0, 0, 1], np.float32) @ R.T, (4, 1))
+    uv = np.array([[0, 1], [1, 1], [1, 0], [0, 0]], np.float32)
+    col = np.tile(np.array([0.5, 1.0, 0.0, 1.0], np.float32), (4, 1))     # pièce éclairée, sans rideau
+    buckets.setdefault('MI_FakeInterior', Bucket()).add(v, n, uv, col, np.array([[0, 1, 2], [0, 2, 3]], np.uint32))
+
 def stats(buckets):
     return sum(len(b.arrays()[4]) for b in buckets.values())

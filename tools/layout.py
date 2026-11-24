@@ -31,9 +31,9 @@ P = {
  'P4': ('pale', 'boutique', 'rouge', 'vert', 'corniche'),
  # Centre
  'S1': ('pierre', 'hall', 'ivoire', 'sombre', 'corniche'),
- 'S2': ('pierre', 'boutique', 'creme', 'vert', 'corniche'),
+ 'S2': ('pierre', 'boutique', 'brun', 'vert', 'corniche'),
  'S3': ('pierre', 'vitrine', 'sable', 'sombre', 'mansarde'),
- 'S4': ('pierre', 'vitrine', 'gris', 'bordeaux', 'corniche'),
+ 'S4': ('pierre', 'vitrine', 'sombre', 'bordeaux', 'corniche'),
  # Affaires
  'G1': ('verre', 'vitrine', 'gris', 'gris', 'corniche'),
  'G2': ('verre', 'vitrine', 'sombre', 'sombre', 'corniche'),

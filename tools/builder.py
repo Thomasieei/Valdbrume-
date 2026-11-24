@@ -205,6 +205,7 @@ class City:
         if g == 'boutique':     # devantures vertes / sombres, porte au milieu
             if i == mid:
                 s.put('DoorFrame_Trim', x, 0, z, ry, tint)
+                s.put('@door', x, 0, z, ry, tint)
             else:
                 s.put('Trim_FirstFloor_Window_001', x, 0, z, ry, tint)
                 s.put('Trim_Wall_Guard', x, 0, z, ry, tint)
@@ -212,6 +213,7 @@ class City:
         elif g == 'vitrine':    # grandes vitrines métal
             if i == mid:
                 s.put('DoorFrame_Metal_Single', x, 0, z, ry, tint)
+                s.put('@door', x, 0, z, ry, tint)
                 s.put('Door_2', x+0.0, 0, z, ry, tint, tag='door')
             else:
                 s.put('Metal_FirstFloor_Window', x, 0, z, ry, tint)
@@ -219,6 +221,7 @@ class City:
         elif g == 'hall':       # entrée d'immeuble : porte bois + murs
             if i == mid:
                 s.put('DoorFrame_Wooden', x, 0, z, ry, tint)
+                s.put('@door', x, 0, z, ry, tint)
             elif i % 2 == 0:
                 s.put('Brick_Window_Square_Single' if l.style != 'pierre' else 'Trim_Window', x, 0, z, ry, tint)
             else:

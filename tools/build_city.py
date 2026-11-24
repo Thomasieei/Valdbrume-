@@ -34,6 +34,8 @@ def run(out_dir, preview_only=False, atlas_dir=None):
             mat, w, d, uvs, col = t
             for tgt in (b, bf): bake.quad(tgt, mat, x, y, z, w, d, uvs, color=col)
             continue
+        if m == '@door':
+            bake.door_back(b, x, y, z, ry); continue
         if m == '@water':
             for tgt in (b, bf): bake.quad(tgt, 'MI_Water', x, y, z, t[0], t[1], 8.0)
             continue
