@@ -147,7 +147,7 @@ func npc_arrived(n: Npc) -> void:
 			at.pos = [at.pos[0] + off.x, at.pos[1], at.pos[2] + off.z]
 		else:
 			# petit cercle de discussion autour du lieu, chacun tourné vers le centre
-			var ang := rot + PI + (others - 1) * 1.1 - 0.55 * min(others - 1, 2)
+			var ang: float = rot + PI + (others - 1) * 1.1 - 0.55 * min(others - 1, 2)
 			var off2 := Vector3(sin(ang), 0, cos(ang)) * 1.35
 			at.pos = [at.pos[0] + off2.x, at.pos[1], at.pos[2] + off2.z]
 			at.rot = rad_to_deg(atan2(-off2.x, -off2.z))
