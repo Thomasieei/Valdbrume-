@@ -120,8 +120,8 @@ class City:
         s.lots = []
         s.boxes = []      # collisions (cx,cy,cz, sx,sy,sz)
         s.occluders = []
-    def put(s, m, x, y, z, ry=0, tint=(1,1,1), tag='decor'):
-        s.items.append((m, x, y, z, ry, tint, tag))
+    def put(s, m, x, y, z, ry=0, tint=(1,1,1), tag='decor', sy=1.0):
+        s.items.append((m, x, y, z, ry, tint, tag, sy))
 
     # ------------------------------------------------------ bâtiments
     def lot(s, l):

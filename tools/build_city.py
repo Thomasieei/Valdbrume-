@@ -20,22 +20,33 @@ def run(out_dir, preview_only=False, atlas_dir=None):
     chunks = {}; far = {}
     def key(x, z): return (int(math.floor(x / CHUNK)), int(math.floor(z / CHUNK)))
     IMPS = {n for n, w, h in impostor.IMP}
-    for (m, x, y, z, ry, t, tag) in c.items:
+    for (m, x, y, z, ry, t, tag, sy) in c.items:
         k = key(x, z)
         b = chunks.setdefault(k, {}); bf = far.setdefault(k, {})
         if m == '@roof':
             bake.quad(b, 'MI_Roof', x, y + 0.02, z, t[0], t[1], 4.0)
             bake.quad(bf, 'MI_Roof', x, y + 0.02, z, t[0], t[1], 4.0); continue
+        if m == '@box':
+            x0, y0, z0, x1, y1, z1, mat, uvs = t
+            for tgt in (b, bf): bake.box(tgt, mat, x0, y0, z0, x1, y1, z1, uvs)
+            continue
+        if m == '@quad':
+            mat, w, d, uvs, col = t
+            for tgt in (b, bf): bake.quad(tgt, mat, x, y, z, w, d, uvs, color=col)
+            continue
+        if m == '@water':
+            for tgt in (b, bf): bake.quad(tgt, 'MI_Water', x, y, z, t[0], t[1], 8.0)
+            continue
         if tag == 'plinth':
-            bake.place(b, m, x, y, z, ry, t, remap={'MI_Trim_MetalConcrete': 'MI_Concrete'})
-            bake.place(bf, m, x, y, z, ry, t, remap={'MI_Trim_MetalConcrete': 'MI_Concrete'}); continue
+            bake.place(b, m, x, y, z, ry, t, remap={'MI_Trim_MetalConcrete': 'MI_Concrete'}, sy=sy)
+            bake.place(bf, m, x, y, z, ry, t, remap={'MI_Trim_MetalConcrete': 'MI_Concrete'}, sy=sy); continue
         if m in IMPS:
             bake.impostor(bf, m, x, y, z, ry, t, pal_index)       # loin : toujours imprimé
             if y >= IMP_FROM or tag == 'back' or m.endswith('_1'):
                 bake.impostor(b, m, x, y, z, ry, t, pal_index); continue
         elif tag == 'ground':
             bake.quad(bf, 'MI_Concrete', x, 0.0, z, 3.0, 3.0, 6.0, color=(0.56, 0.56, 0.56))
-        bake.place(b, m, x, y, z, ry, t, lite=(y >= 10.0 and tag != 'ground'))
+        bake.place(b, m, x, y, z, ry, t, lite=(y >= 10.0 and tag != 'ground'), sy=sy)
     # chaussées : découpées par zone pour la culture de visibilité
     for (mat, cx, y, cz, w, d, uvs) in ground_quads:
         x0, x1, z0, z1 = cx - w/2, cx + w/2, cz - d/2, cz + d/2

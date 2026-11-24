@@ -76,21 +76,36 @@ def islands():
             out.append(((a0+a1)/2, -0.5, (b0+b1)/2, a1-a0, 1.0, b1-b0))
     x0, z0, x1, z1 = streets.PLAZA
     out.append(((x0+x1)/2, -0.5, (z0+z1)/2, x1-x0, 1.0, z1-z0))      # place
-    # socle 24 x 24 (1 m) : cœur 20 x 20 + bords, ouvertures des escaliers (|axe| < 4)
-    out.append((0, 0.5, 0, 20, 1.0, 20))
-    for sgn in (-1, 1):
-        for a in (-8, 8):
-            out.append((sgn*11, 0.5, a, 2, 1.0, 8))    # bords est/ouest
-            out.append((a, 0.5, sgn*11, 8, 1.0, 2))    # bords nord/sud
+    B, R, I, D, C = streets.BASIN, streets.RIM, streets.ISLAND, streets.DECK, streets.CAUSE
+    H = 1.3                                                           # garde-corps invisibles
+    for s in (-1, 1):
+        # rebords du bassin (plus hauts en collision : on ne tombe pas dans l'eau)
+        for a0, a1 in ((-B, -C), (C, B)):
+            out.append(((a0+a1)/2, H/2, s*(B - R/2), a1-a0, H, R))
+            out.append((s*(B - R/2), H/2, (a0+a1)/2, R, H, a1-a0))
+        # passerelles (dessus à DECK) + garde-corps latéraux
+        L = B - I
+        out.append((0, D/2, s*(I + L/2), 2*C, D, L))
+        out.append((s*(I + L/2), D/2, 0, L, D, 2*C))
+        for t in (-1, 1):
+            out.append((t*(C + 0.15), D + H/2, s*(I + L/2), 0.3, H, L - R))
+            out.append((s*(I + L/2), D + H/2, t*(C + 0.15), L - R, H, 0.3))
+        # bords de l'île hors passerelles
+        for a0, a1 in ((-I, -C), (C, I)):
+            out.append(((a0+a1)/2, D + H/2, s*(I - 0.15), a1-a0, H, 0.3))
+            out.append((s*(I - 0.15), D + H/2, (a0+a1)/2, 0.3, H, a1-a0))
+    out.append((0, D/2, 0, 2*I, D, 2*I))                              # île centrale
     return out
 
 def ramps():
-    # escaliers du socle : rampes invisibles (1 m de montée sur 2 m)
-    a = math.degrees(math.atan2(1.0, 2.0))
-    return [dict(pos=[0, 0.5, 11], size=[8, 0.1, 2.25], rot_x=a, rot_y=0),
-            dict(pos=[0, 0.5, -11], size=[8, 0.1, 2.25], rot_x=a, rot_y=180),
-            dict(pos=[11, 0.5, 0], size=[8, 0.1, 2.25], rot_x=a, rot_y=90),
-            dict(pos=[-11, 0.5, 0], size=[8, 0.1, 2.25], rot_x=a, rot_y=270)]
+    """marches d'entrée des passerelles : rampes invisibles (0,5 m sur 2,5 m)."""
+    B, D = streets.BASIN, streets.DECK
+    ang = math.degrees(math.atan2(D, 2.5))
+    L = math.hypot(D, 2.5)
+    out = []
+    for ry, (px, pz) in ((0, (0, B + 0.75)), (180, (0, -B - 0.75)), (90, (B + 0.75, 0)), (270, (-B - 0.75, 0))):
+        out.append(dict(pos=[px, D/2 - 0.03, pz], size=[6, 0.06, L], rot_x=ang, rot_y=ry))
+    return out
 
 def build_skyline(path):
     B = {}
@@ -131,7 +146,13 @@ def viewpoints():
         dict(name='14_vue_haute_ouest', eye=[-150, 90, 260], at=[-200, 0, 0]),
         dict(name='15_fenetres_contreplongee', eye=[-30, 1.6, -15], at=[-35, 20, -14]),
         dict(name='16_rue_des_arches', eye=[150, 1.7, -100], at=[147, 8, 20]),
-        dict(name='18_place_socle', eye=[-26, 1.7, 22], at=[0, 2, 0]),
+        dict(name='18_place_bassin', eye=[-30, 1.7, 30], at=[0, 1, 0]),
+        dict(name='21_passage_lanternes', eye=[-200, 1.7, -16], at=[-200, 6, -110]),
+        dict(name='22_gare_ouest', eye=[-330, 1.7, 0], at=[-390, 16, 0]),
+        dict(name='23_tour_valdbrume', eye=[320, 1.7, -2], at=[390, 40, 0]),
+        dict(name='24_hotel_de_ville', eye=[0, 1.7, -160], at=[0, 18, -225]),
+        dict(name='25_rue_fontaine', eye=[-158, 1.7, 65], at=[-240, 6, 65]),
+        dict(name='26_ile_du_portail', eye=[0, 2.2, 15.5], at=[0, 1, 0]),
         dict(name='19_vieux_quartier_mansardes', eye=[-300, 1.7, 126], at=[-340, 14, 118]),
         dict(name='20_boulevard_loin', eye=[-360, 1.7, -3], at=[0, 8, 0]),
     ]
@@ -148,7 +169,7 @@ def main():
     os.remove(os.path.join(GEN, 'chunks', 'city.json'))
     for ch in meta['chunks']: write_import_scene(os.path.join(GEN, 'chunks', ch['name'] + '.glb'))
     meta['islands'] = islands(); meta['ramps'] = ramps(); meta['views'] = viewpoints()
-    meta['spawn'] = [0, 1.2, 30]
+    meta['spawn'] = [0, 0.3, 34]
     meta['city'] = list(skyline.CITY)
     from builder import PALETTE
     meta['palette'] = [list(c) for c in PALETTE]

@@ -152,6 +152,7 @@ def build_streets(c, quad):
             k += 24; i += 1
 
     build_plaza(c, tile)
+    build_alleys(c, tile)
 
 def _near_cross(p, m):
     x, z = p
@@ -161,11 +162,31 @@ def _near_cross(p, m):
             if abs(x - s[2]) < s[3] + s[4] + m and abs(z - e[2]) < e[3] + e[4] + m: return True
     return False
 
+# ruelles piétonnes (pavées, sans chaussée) : x0, z0, x1, z1
+ALLEYS = [(-203, -120, -197, -12, 'Passage des Lanternes'),
+          (-249, 62, -153, 68, 'Rue de la Fontaine'),
+          (199, -120, 205, -12, 'Passage de la Bourse')]
+
+# Place du Portail : bassin et île centrale (futur portail)
+BASIN = 19.0        # bord extérieur du bassin (carré de 38 m)
+RIM = 1.5           # largeur du rebord (assise)
+RIM_H = 0.6
+WATER_Y = 0.32
+ISLAND = 8.0        # île centrale 16 x 16
+DECK = 0.5          # hauteur de l'île et des passerelles
+CAUSE = 3.0         # demi-largeur des passerelles (6 m)
+MARBLE = 27.0       # anneau de marbre autour du bassin
+
 def build_plaza(c, tile):
-    """Place du Portail : dallage, bordures face aux chaussées, socle central
-    (futur portail), jardinières et bornes. Tout est posé explicitement."""
+    """Place du Portail, composée à la main :
+    - dallage de pierre sur toute la place, bordures face aux chaussées ;
+    - anneau de marbre autour d'un grand bassin carré ;
+    - île centrale (socle du futur portail) reliée par 4 passerelles,
+      avec une marche à l'entrée de chaque passerelle ;
+    - rebord du bassin assez bas pour s'y asseoir ;
+    - jardinières aux angles de l'anneau, bornes aux entrées."""
     x0, z0, x1, z1 = PLAZA
-    # dallage complet (tuiles 3 m) ; bordure côté chaussée aux 4 entrées
+    T = ((1, 1, 1), (1, 1, 1), (1, 1, 1))
     x = x0 + 1.5
     while x < x1:
         z = z0 + 1.5
@@ -174,8 +195,8 @@ def build_plaza(c, tile):
             road_s = abs(x) < 6 and z > z1 - 3
             road_o = abs(z) < 6 and x < x0 + 3
             road_e = abs(z) < 6 and x > x1 - 3
-            if abs(x) < 12 and abs(z) < 12:
-                pass                                   # sous le socle
+            if abs(x) < MARBLE and abs(z) < MARBLE:
+                pass
             elif road_n: tile('Sidewalk_Straight_3m', x, z, 180)
             elif road_s: tile('Sidewalk_Straight_3m', x, z, 0)
             elif road_o: tile('Sidewalk_Straight_3m', x, z, 270)
@@ -183,26 +204,50 @@ def build_plaza(c, tile):
             else: tile('Sidewalk_NoCurb_3m', x, z, 0)
             z += 3
         x += 3
-    # socle central 24 x 24, 1 m de haut, escaliers au milieu de chaque côté
-    T = ((1, 1, 1), (1, 1, 1))
-    for i in range(12):
-        for j in range(12):
-            px, pz = -11 + 2*i, -11 + 2*j
-            stair = (abs(px) < 4 and abs(pz) > 9) or (abs(pz) < 4 and abs(px) > 9)
-            if not stair: c.put('Entrance_Concrete_2x2', px, 0, pz, 0, T, 'plinth')
-    for k in (-3, -1, 1, 3):
-        c.put('Stairs_Entrance_Concrete', k + 0.0, 0, 10, 0, T, 'plinth')      # vers le sud
-        c.put('Stairs_Entrance_Concrete', k + 0.0, 0, -10, 180, T, 'plinth')   # vers le nord
-        c.put('Stairs_Entrance_Concrete', 10, 0, k + 0.0, 90, T, 'plinth')     # vers l'est
-        c.put('Stairs_Entrance_Concrete', -10, 0, k + 0.0, 270, T, 'plinth')   # vers l'ouest
-    # jardinières en couronne autour du socle (8), bornes aux entrées de chaussée
-    for (px, pz) in [(-20, -20), (20, -20), (-20, 20), (20, 20), (-20, 0), (20, 0), (0, -20), (0, 20)]:
-        if px == 0 or pz == 0:
-            # devant les escaliers : paire de jardinières de part et d'autre de l'axe
-            if px == 0: c.put('Sidewalk_Planter', -7, 0, pz + (3 if pz > 0 else -3), 0, T); c.put('Sidewalk_Planter', 7, 0, pz + (3 if pz > 0 else -3), 0, T)
-            else: c.put('Sidewalk_Planter', px + (3 if px > 0 else -3), 0, -7, 90, T); c.put('Sidewalk_Planter', px + (3 if px > 0 else -3), 0, 7, 90, T)
-        else:
-            c.put('Prop_Planter_Single', px, 0, pz, 0, T)
+    def q(mat, cx, y, cz, w, d, uvs, col=(0.5, 0.5, 0.5)):
+        c.put('@quad', cx, y, cz, 0, (mat, w, d, uvs, col), 'plinth')
+    def bx(a0, y0, b0, a1, y1, b1, mat='MI_Concrete', uvs=2.0):
+        c.put('@box', 0, 0, 0, 0, (a0, y0, b0, a1, y1, b1, mat, uvs), 'plinth')
+    M, B = MARBLE, BASIN
+    # anneau de marbre (4 bandes)
+    q('MI_InteriorFloor', 0, 0.0, -(M+B)/2, 2*M, M-B, 4.0)
+    q('MI_InteriorFloor', 0, 0.0, (M+B)/2, 2*M, M-B, 4.0)
+    q('MI_InteriorFloor', -(M+B)/2, 0.0, 0, M-B, 2*B, 4.0)
+    q('MI_InteriorFloor', (M+B)/2, 0.0, 0, M-B, 2*B, 4.0)
+    # fond du bassin et eau
+    q('MI_BasinFloor', 0, -0.25, 0, 2*B, 2*B, 3.0, (0.22, 0.24, 0.25))
+    c.put('@water', 0, WATER_Y, 0, 0, (2*(B-RIM), 2*(B-RIM)), 'plinth')
+    r0 = B - RIM
+    # rebords (ouvertures de 6 m pour les passerelles)
+    for sgn in (-1, 1):
+        for (a, b2) in ((-B, -CAUSE), (CAUSE, B)):
+            bx(a, -0.25, sgn*B - (RIM if sgn > 0 else 0), b2, RIM_H, sgn*B + (0 if sgn > 0 else RIM), 'MI_Concrete')
+        for (a, b2) in ((-r0, -CAUSE), (CAUSE, r0)):
+            bx(sgn*B - (RIM if sgn > 0 else 0), -0.25, a, sgn*B + (0 if sgn > 0 else RIM), RIM_H, b2, 'MI_Concrete')
+    # île centrale + passerelles + marches d'entrée
+    bx(-ISLAND, -0.25, -ISLAND, ISLAND, DECK, ISLAND, 'MI_Concrete')
+    bx(-ISLAND + 0.6, DECK, -ISLAND + 0.6, ISLAND - 0.6, DECK + 0.02, ISLAND - 0.6, 'MI_InteriorFloor', 4.0)
+    for sgn in (-1, 1):
+        bx(-CAUSE, -0.25, min(sgn*ISLAND, sgn*B), CAUSE, DECK, max(sgn*ISLAND, sgn*B))
+        bx(min(sgn*ISLAND, sgn*B), -0.25, -CAUSE, max(sgn*ISLAND, sgn*B), DECK, CAUSE)
+        bx(-CAUSE, 0.0, min(sgn*B, sgn*(B+1)), CAUSE, DECK/2, max(sgn*B, sgn*(B+1)))
+        bx(min(sgn*B, sgn*(B+1)), 0.0, -CAUSE, max(sgn*B, sgn*(B+1)), DECK/2, CAUSE)
+    # jardinières aux 4 angles de l'anneau, bornes aux entrées de chaussée
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            c.put('Prop_Planter_Single', sx*23, 0, sz*23, 0, T)
+            c.put('Prop_Planter_Single', sx*23, 0, sz*(23 - 3.2), 0, T)
+            c.put('Prop_Planter_Single', sx*(23 - 3.2), 0, sz*23, 0, T)
     for k in range(-5, 6, 2):
         c.put('Prop_Bollard', k, 0, z0 + 3.6, 0, T); c.put('Prop_Bollard', k, 0, z1 - 3.6, 0, T)
         c.put('Prop_Bollard', x0 + 3.6, 0, k, 0, T); c.put('Prop_Bollard', x1 - 3.6, 0, k, 0, T)
+
+def build_alleys(c, tile):
+    for (x0, z0, x1, z1, name) in ALLEYS:
+        x = x0 + 1.5
+        while x < x1:
+            z = z0 + 1.5
+            while z < z1:
+                tile('Sidewalk_NoCurb_3m', x, z, 0)
+                z += 3
+            x += 3

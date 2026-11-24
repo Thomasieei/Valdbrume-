@@ -82,13 +82,14 @@ class Bucket:
         return (np.concatenate(s.v), np.concatenate(s.n), np.concatenate(s.uv), np.concatenate(s.c), np.concatenate(s.f))
     def uv2s(s): return np.concatenate(s.uv2)
 
-def place(buckets, name, x, y, z, ry, tint, lite=False, remap=None):
-    R = rot(ry); T = np.array([x, y, z], np.float32)
+def place(buckets, name, x, y, z, ry, tint, lite=False, remap=None, sy=1.0):
+    R = rot(ry) @ np.diag([1.0, sy, 1.0]).astype(np.float32); T = np.array([x, y, z], np.float32)
+    Rn = rot(ry)
     if not isinstance(tint[0], tuple): tint = (tint, tint, tint)
     if len(tint) == 2: tint = (tint[0], tint[1], tint[1])
     tw, ts, ta = tint
     for mat, v, n, uv, f in geo(name, lite):
-        V = v @ R.T + T; N = n @ R.T
+        V = v @ R.T + T; N = n @ Rn.T
         if mat.startswith('MI_FakeInterior'):
             cx, cy, cz = V.mean(0)
             col = np.tile(np.array(room_color(cx, cy, cz) + (1,), np.float32), (len(V), 1))
@@ -168,6 +169,23 @@ def write_glb(path, buckets, name='chunk', origin=(0, 0, 0), extra=()):
     gl.buffers = [G.Buffer(byteLength=len(blob))]
     gl.set_binary_blob(bytes(blob))
     gl.save_binary(path)
+
+def box(buckets, mat, x0, y0, z0, x1, y1, z1, uvscale=2.0, color=(0.5, 0.5, 0.5)):
+    """pavé (5 faces, sans dessous), UV alignées sur le monde."""
+    c = np.array(tuple(color) + (1,), np.float32)
+    F = np.array([[0, 2, 1], [0, 3, 2]], np.uint32)
+    faces = [
+        ([[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]], (0, 1, 0), lambda p: (p[0], p[2])),
+        ([[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], (0, 0, 1), lambda p: (p[0], -p[1])),
+        ([[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]], (0, 0, -1), lambda p: (-p[0], -p[1])),
+        ([[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]], (1, 0, 0), lambda p: (-p[2], -p[1])),
+        ([[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]], (-1, 0, 0), lambda p: (p[2], -p[1])),
+    ]
+    for pts, n, uvf in faces:
+        v = np.array(pts, np.float32)
+        uv = np.array([uvf(p) for p in v], np.float32) / uvscale
+        f = np.array([[0, 1, 2], [0, 2, 3]], np.uint32)
+        buckets.setdefault(mat, Bucket()).add(v, np.tile(np.array(n, np.float32), (4, 1)), uv, np.tile(c, (4, 1)), f)
 
 def stats(buckets):
     return sum(len(b.arrays()[4]) for b in buckets.values())

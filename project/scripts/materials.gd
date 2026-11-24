@@ -42,7 +42,11 @@ func build(palette: Array) -> void:
 	by_name["MI_Concrete"] = _kit("T_Concrete_BaseColor", true)
 	by_name["MI_Dirt"] = _kit("T_Dirt_BaseColor")
 	by_name["MI_Roof_Slate"] = _kit("T_RoofSlate_BaseColor")
-	by_name["MI_InteriorFloor"] = _kit("T_MarbleFloor_BaseColor")
+	by_name["MI_InteriorFloor"] = _kit("T_MarbleFloor_BaseColor", true, Vector3(1.05, 1.03, 1.0), 1.0, 0.8)
+	by_name["MI_BasinFloor"] = _kit("T_Concrete_BaseColor", true, Vector3(0.55, 0.6, 0.6))
+	var water := ShaderMaterial.new()
+	water.shader = load("res://shaders/water.gdshader")
+	by_name["MI_Water"] = water
 	by_name["MI_InteriorRoof"] = _kit("T_Concrete_BaseColor")
 	by_name["MI_Asphalt"] = _kit("T_Concrete_Asphalt_BaseColor", true, Vector3(0.92, 0.92, 0.95))
 	by_name["MI_Roof"] = _kit("T_Concrete_Asphalt_BaseColor", false, Vector3(0.62, 0.6, 0.6))
@@ -65,6 +69,8 @@ func build(palette: Array) -> void:
 	for c in palette: pal.append(Vector3(c[0], c[1], c[2]))
 	while pal.size() < 16: pal.append(Vector3.ONE)
 	fac.set_shader_parameter("palette", pal)
+	var atlas: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(G + "facade_atlas.json"))
+	fac.set_shader_parameter("relief_scale", Vector2(atlas.px_per_m / float(atlas.width), atlas.px_per_m / float(atlas.height)))
 	_interior_params(fac)
 	by_name["MI_Facade"] = fac
 	var sky := ShaderMaterial.new()
