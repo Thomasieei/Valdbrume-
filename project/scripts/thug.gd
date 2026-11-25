@@ -201,7 +201,7 @@ func _physics_process(dt: float) -> void:
 	var hp := heros.global_position if heros else global_position
 	var to := hp - global_position; to.y = 0
 	var dist := to.length()
-	var heros_dispo: bool = heros.get("vivant") != false and not (heros.get("state") in [10, 11, 12])
+	var heros_dispo: bool = heros.get("vivant") != false and not (heros.get("state") in [10, 11, 12, 13, 14])
 	match etat:
 		E.ATTENTE:
 			_face(hp, dt, 4.0)

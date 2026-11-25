@@ -17,6 +17,7 @@ func _ready() -> void:
 	_build_collisions()
 	_build_occluders()
 	_build_lamps()
+	_build_props()
 
 func _load_chunks() -> void:
 	var root := Node3D.new()
@@ -171,3 +172,52 @@ func _process(dt: float) -> void:
 			ol.light_energy = 2.4 * n
 		else:
 			ol.visible = false
+
+# ------------------------------------------------------------ mobilier urbain et obstacles
+func _build_props() -> void:
+	if not meta.has("props"): return
+	# pièces de chaque modèle (maillage + position dans le modèle)
+	var parts := {}
+	for p in meta.props:
+		var t: String = p[0]
+		if parts.has(t): continue
+		var ps: PackedScene = load(GEN + "props/%s.glb" % t)
+		var src: Node3D = ps.instantiate()
+		var list := []
+		for mi in src.find_children("*", "MeshInstance3D", true, false):
+			var xf := _rel(src, mi)
+			list.append([mi.mesh, xf])
+		parts[t] = list
+		src.free()
+	var cells := {}
+	for p in meta.props:
+		var k := "%s|%d|%d" % [p[0], floori(float(p[1]) / 96.0), floori(float(p[2]) / 96.0)]
+		if not cells.has(k): cells[k] = []
+		cells[k].append(p)
+	var root := Node3D.new(); root.name = "Mobilier"; add_child(root)
+	for k in cells:
+		var t: String = cells[k][0][0]
+		var big := t in ["berline", "compacte", "citadine", "suv", "camionnette", "benne", "benne_b", "abribus"]
+		for part in parts[t]:
+			var mm := MultiMesh.new()
+			mm.transform_format = MultiMesh.TRANSFORM_3D
+			mm.mesh = part[0]
+			mm.instance_count = cells[k].size()
+			for i in cells[k].size():
+				var p: Array = cells[k][i]
+				var xf := Transform3D(Basis(Vector3.UP, deg_to_rad(float(p[3]))), Vector3(p[1], 0.0, p[2])) * (part[1] as Transform3D)
+				mm.set_instance_transform(i, xf)
+			var mmi := MultiMeshInstance3D.new()
+			mmi.multimesh = mm
+			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if big else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mmi.visibility_range_end = 210.0 if big else 120.0
+			mmi.visibility_range_end_margin = 10.0
+			root.add_child(mmi)
+
+func _rel(root: Node3D, n: Node3D) -> Transform3D:
+	var xf := Transform3D.IDENTITY
+	var cur: Node = n
+	while cur and cur != root:
+		if cur is Node3D: xf = (cur as Node3D).transform * xf
+		cur = cur.get_parent()
+	return xf

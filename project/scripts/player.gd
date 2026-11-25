@@ -20,7 +20,7 @@ var pivot := Node3D.new()
 var arm := SpringArm3D.new()
 var cam := Camera3D.new()
 
-enum S { LOCO, AIR, ROLL, SLIDE, ATTACK, DODGE, EMOTE, LAND, HIT, DEAD, LAUNCH, SOL, GETUP }
+enum S { LOCO, AIR, ROLL, SLIDE, ATTACK, DODGE, EMOTE, LAND, HIT, DEAD, LAUNCH, SOL, GETUP, PARKOUR, WALLRUN }
 var state := S.LOCO
 var state_t := 0.0
 var state_len := 0.0
@@ -50,6 +50,17 @@ var trail: WeaponTrail
 var knock := Vector3.ZERO
 var lunge := 2.2                # élan du coup (aimanté vers la cible)
 var lunge_cible: Node3D = null
+var encoche: MeshInstance3D       # flèche encochée sur l'arc
+# parkour
+var pk := {}                     # mouvement en cours : animation, départ, arrivée, durée…
+var pk_cd := 0.0
+var pk_tour := 0                 # alterne les styles de passage d'obstacle
+var ninja := false               # saut en pleine course (réception stylée)
+var chute_v := 0.0               # vitesse de chute maximale pendant le saut
+var mur_n := Vector3.ZERO
+var mur_dir := Vector3.ZERO
+var mur_cote := "L"
+signal parkour(nom: String)
 var combo_n := 0               # coups portés d'affilée (affiché à l'écran)
 var combo_t := 0.0
 
@@ -92,6 +103,10 @@ func _ready() -> void:
 	add_to_group("heros")
 	trail = WeaponTrail.new()
 	add_child(trail)
+	encoche = Fx.fleche_node()
+	encoche.top_level = true
+	encoche.visible = false
+	add_child(encoche)
 
 func style() -> String: return styles[style_i]
 
@@ -200,12 +215,28 @@ func _strike() -> void:
 			pr.lance(from, aim, 22.0, t)
 			Fx.flash(get_parent(), from, Fx.TEINTE.Dark if heavy else Fx.TEINTE.Mystic, 2.5, 4.0, 0.25)
 		"arc":
-			var from2 := _bone_pos("hand_l") + Vector3(0, 0.05, 0) + fwd * 0.3
+			var from2 := _bone_pos("hand_l") + fwd * 0.15
 			var t2 := cible_visee(32.0)
 			var pr2 := Projectile.new()
 			pr2.exclude = [get_rid()]; pr2.kind = "fleche"; pr2.degats = dmg; pr2.vie = 1.4
 			get_parent().add_child(pr2)
 			pr2.lance(from2, (t2.global_position + Vector3(0, 1.0, 0) - from2).normalized() if t2 else fwd, 38.0, t2)
+
+## la flèche encochée : de la main qui tend la corde vers la main qui tient l'arc
+func _encoche() -> void:
+	var montre := style() == "arc" and vivant and state not in [S.ROLL, S.SLIDE, S.LAUNCH, S.SOL, S.GETUP, S.HIT, S.DEAD]
+	if montre and state == S.ATTACK:
+		var hts: Array = HIT_TIMES.get(attack_name, [0.42])
+		# disparaît au moment du tir, réapparaît pour la flèche suivante
+		var rel := state_t / maxf(state_len, 0.01)
+		montre = attack_name == "Bow_RapidShoot_Loop" or rel < float(hts[0]) / 0.92 or rel > 0.8
+	encoche.visible = montre
+	if not montre: return
+	var nock := _bone_pos("hand_r")
+	var grip := _bone_pos("hand_l")
+	var d := grip - nock
+	if d.length() < 0.05: encoche.visible = false; return
+	encoche.global_transform = Transform3D(Basis.looking_at(d.normalized(), Vector3.UP), nock)
 
 func _hitstop(d: float) -> void:
 	Engine.time_scale = 0.06
@@ -214,7 +245,7 @@ func _hitstop(d: float) -> void:
 
 ## coup reçu (les roulades et glissades esquivent)
 func blesse(dmg: float, from: Vector3, force := 4.0) -> void:
-	if not vivant or state in [S.ROLL, S.SLIDE, S.DEAD, S.LAUNCH, S.SOL, S.GETUP]: return
+	if not vivant or state in [S.ROLL, S.SLIDE, S.DEAD, S.LAUNCH, S.SOL, S.GETUP, S.PARKOUR, S.WALLRUN]: return
 	pv -= dmg; hurt_t = 0.0; hurt_flash = 1.0; shake = 0.45 + force * 0.04
 	combo_n = 0
 	var away := global_position - from; away.y = 0
@@ -231,7 +262,7 @@ func blesse(dmg: float, from: Vector3, force := 4.0) -> void:
 
 ## projeté par un coup puissant : envol, chute sur le dos, relevé en kip-up
 func projete(dmg: float, from: Vector3) -> void:
-	if not vivant or state in [S.ROLL, S.SLIDE, S.DEAD, S.LAUNCH, S.SOL, S.GETUP]: return
+	if not vivant or state in [S.ROLL, S.SLIDE, S.DEAD, S.LAUNCH, S.SOL, S.GETUP, S.PARKOUR, S.WALLRUN]: return
 	pv -= dmg; hurt_t = 0.0; hurt_flash = 1.0; shake = 1.0; combo_n = 0
 	var away := global_position - from; away.y = 0
 	away = away.normalized()
@@ -259,7 +290,7 @@ func revive(at: Vector3) -> void:
 	vis.play("KipUp", 0.0, 1.0, true)
 
 func dodge() -> void:
-	if not vivant or state == S.HIT: return
+	if not vivant or state in [S.HIT, S.PARKOUR, S.WALLRUN, S.LAUNCH, S.SOL, S.GETUP]: return
 	if not is_on_floor() or state in [S.ROLL, S.SLIDE]: return
 	var hv := Vector3(velocity.x, 0, velocity.z)
 	var mv := _move_dir()
@@ -281,6 +312,126 @@ func emote() -> void:
 	state_len = 6.0 if n.ends_with("_Loop") else vis.length(n)
 	vis.play(n, 0.2, 1.0, true)
 
+# ------------------------------------------------------------ parkour
+func _ray(a: Vector3, b: Vector3) -> Dictionary:
+	var q := PhysicsRayQueryParameters3D.create(a, b, 1, [get_rid()])
+	return get_world_3d().direct_space_state.intersect_ray(q)
+
+## en pleine course face à un obstacle : on lit sa hauteur et son épaisseur, puis
+## on choisit le mouvement (marche, saut de barrière, vrille, escalade)
+func _parkour_check(hv: Vector3) -> bool:
+	var fwd := hv.normalized()
+	var pos := global_position
+	var look := clampf(hv.length() * 0.3, 1.1, 2.0)
+	var hit := {}
+	for h in [0.4, 0.95, 1.5, 2.1]:
+		var r := _ray(pos + Vector3.UP * h, pos + Vector3.UP * h + fwd * look)
+		if not r.is_empty() and (r.normal as Vector3).dot(fwd) < -0.5 and absf(r.normal.y) < 0.4:
+			hit = r; break
+	if hit.is_empty(): return false
+	var hp: Vector3 = hit.position
+	var dist := Vector2(hp.x - pos.x, hp.z - pos.z).length()
+	var probe := hp + fwd * 0.25
+	var top := _ray(Vector3(probe.x, pos.y + 3.3, probe.z), Vector3(probe.x, pos.y - 0.2, probe.z))
+	if top.is_empty(): return false
+	var top_p: Vector3 = top.position
+	var h2 := top_p.y - pos.y
+	if h2 < 0.25 or h2 > 2.55: return false
+	# épaisseur : tant que le dessus reste haut
+	var depth := 0.25
+	var land_y := pos.y
+	var k := 0.35
+	var deep := true
+	while k <= 3.2:
+		var q := hp + fwd * k
+		var rr := _ray(Vector3(q.x, pos.y + 3.3, q.z), Vector3(q.x, pos.y - 1.5, q.z))
+		if rr.is_empty() or (rr.position as Vector3).y < pos.y + 0.25:
+			land_y = (rr.position as Vector3).y if not rr.is_empty() else pos.y
+			deep = false
+			break
+		depth = k; k += 0.35
+	# assez de place au-dessus pour passer ou monter
+	if not _ray(top_p + Vector3.UP * 0.05, top_p + Vector3.UP * 1.85).is_empty(): return false
+	var sprint := hv.length() > 5.2
+	var p_top := Vector3(hp.x, top_p.y, hp.z) + fwd * 0.55
+	if h2 <= 0.62:
+		if deep or depth > 1.0: return _pk_start("StepUp", "monte", pos, p_top, top_p.y, 1.5, hv.length())
+		return _pk_start("PK_Vault", "passe", pos, hp + fwd * (depth + 0.55), land_y, 1.25, hv.length())
+	if h2 <= 1.4 and not deep and depth <= 1.5:
+		var styles := ["PK_Vault", "PK_Flip", "SafetyVault"] if sprint else ["SafetyVault", "PK_Vault"]
+		var a: String = styles[pk_tour % styles.size()]; pk_tour += 1
+		var bout := hp + fwd * (depth + 0.6)
+		if a == "PK_Flip": bout = pos + fwd * maxf(AnimBank.avance_totale("PK_Flip") * 0.85, dist + depth + 0.9)
+		return _pk_start(a, "passe", pos, bout, land_y, 1.05 if a == "PK_Flip" else 1.15, hv.length())
+	if h2 <= 1.95 and not deep and depth <= 2.8 and sprint:
+		var bout2 := pos + fwd * maxf(AnimBank.avance_totale("PK_Flip") * 0.9, dist + depth + 1.0)
+		return _pk_start("PK_Flip", "passe", pos, bout2, land_y, 1.0, hv.length())
+	if h2 <= 1.45: return _pk_start("ClimbUp_1m", "grimpe", pos, p_top, top_p.y, 1.25, 0.0)
+	return _pk_start("ClimbUp_2m", "grimpe", pos, p_top, top_p.y, 1.15, 0.0)
+
+func _pk_start(anim: String, kind: String, p0: Vector3, p1: Vector3, y1: float, vitesse: float, v_sortie: float) -> bool:
+	var dur := vis.length(anim) / vitesse
+	if dur <= 0.05: return false
+	var fwd := Vector3(p1.x - p0.x, 0, p1.z - p0.z).normalized()
+	pk = {"anim": anim, "kind": kind, "p0": p0, "p1": Vector3(p1.x, y1, p1.z), "dur": dur, "fwd": fwd, "v": v_sortie}
+	state = S.PARKOUR; state_t = 0.0
+	vis.rotation.y = atan2(fwd.x, fwd.z)
+	vis.play(anim, 0.08, vitesse, true)
+	velocity = Vector3.ZERO
+	parkour.emit(anim)
+	return true
+
+func _pk_update(dt: float) -> void:
+	var t := state_t
+	var dur: float = pk.dur
+	var p0: Vector3 = pk.p0; var p1: Vector3 = pk.p1
+	var k := clampf(t / dur, 0.0, 1.0)
+	var pos := global_position
+	match String(pk.kind):
+		"passe":
+			var f := AnimBank.progression(String(pk.anim), t, dur)
+			pos = p0.lerp(p1, f)
+			pos.y = lerpf(p0.y, p1.y, smoothstep(0.55, 1.0, k))
+		"monte", "grimpe":
+			# on s'approche du mur, on se hisse, puis on avance sur le dessus
+			var rise := smoothstep(0.08, 0.7 if pk.kind == "grimpe" else 0.5, k)
+			var fw := smoothstep(0.45 if pk.kind == "grimpe" else 0.15, 1.0, k)
+			pos = Vector3(lerpf(p0.x, p1.x, fw), lerpf(p0.y, p1.y, rise), lerpf(p0.z, p1.z, fw))
+	global_position = pos
+	if t >= dur:
+		state = S.LOCO; state_t = 0.0; pk_cd = 0.35
+		velocity = (pk.fwd as Vector3) * float(pk.v)
+		if float(pk.v) > 0.5 and pk.kind == "passe": vis.play("Sprint_Loop" if float(pk.v) > 5.0 else "Jog_Fwd_Loop", 0.12)
+
+## course sur un mur : sprint + saut le long d'une façade
+func _wallrun_check(hv: Vector3) -> bool:
+	if hv.length() < 5.0: return false
+	var fwd := hv.normalized()
+	var right := fwd.cross(Vector3.UP).normalized()
+	for side in [-1.0, 1.0]:
+		var r := _ray(global_position + Vector3.UP, global_position + Vector3.UP + right * side * 1.3)
+		if r.is_empty(): continue
+		var n: Vector3 = r.normal
+		if absf(n.y) > 0.3 or absf(n.dot(fwd)) > 0.45: continue
+		mur_n = Vector3(n.x, 0, n.z).normalized()
+		mur_dir = (fwd - mur_n * fwd.dot(mur_n)).normalized()
+		mur_cote = "R" if side > 0.0 else "L"
+		state = S.WALLRUN; state_t = 0.0
+		velocity = mur_dir * maxf(hv.length(), 6.5) + Vector3.UP * 3.2
+		vis.rotation.y = atan2(mur_dir.x, mur_dir.z)
+		vis.play("WallRun_%s_Loop" % mur_cote, 0.1, 1.15, true)
+		parkour.emit("WallRun")
+		return true
+	return false
+
+func _wallrun_end(saute: bool) -> void:
+	state = S.AIR; state_t = 0.0; ninja = saute
+	if saute:
+		velocity = mur_dir * 6.2 + mur_n * 4.2 + Vector3.UP * 6.0
+		vis.play("WallRun_Jump_%s" % mur_cote, 0.06, 1.1, true)
+	else:
+		velocity = mur_dir * 5.0 + mur_n * 1.5
+
 # ------------------------------------------------------------ boucle
 func _move_dir() -> Vector3:
 	var kb := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
@@ -300,6 +451,7 @@ func _physics_process(dt: float) -> void:
 	cam.h_offset = randf_range(-1.0, 1.0) * shake * 0.09
 	cam.v_offset = randf_range(-1.0, 1.0) * shake * 0.07
 	trail.active = state == S.ATTACK and style() == "epee" and state_t < state_len * 0.8
+	_encoche()
 	if state == S.ATTACK:
 		var hts: Array = HIT_TIMES.get(attack_name, [0.42])
 		if hit_i < hts.size() and state_t >= state_len * float(hts[hit_i]) / 0.92:
@@ -309,6 +461,32 @@ func _physics_process(dt: float) -> void:
 	var hv := Vector3(velocity.x, 0, velocity.z)
 	var target := Vector3.ZERO
 	var sprint := sprint_held or Input.is_key_pressed(KEY_SHIFT) or amount > 0.92
+	pk_cd -= dt
+	if state == S.PARKOUR:
+		_pk_update(dt)
+		_animate(0.0)
+		return
+	if state == S.WALLRUN:
+		# collé au mur, on court dessus ; saut = rebond, fin du mur = chute
+		velocity.y -= gravity * 0.32 * dt
+		var wr := _ray(global_position + Vector3.UP, global_position + Vector3.UP - mur_n * 1.3)
+		var saute := Input.is_action_just_pressed("ui_accept") or _jump_req
+		_jump_req = false
+		if wr.is_empty() or state_t > 1.15 or saute or (is_on_floor() and state_t > 0.3):
+			_wallrun_end(saute)
+		else:
+			var wp: Vector3 = wr.position
+			var cible_p := wp + mur_n * 0.42
+			var sp := maxf(Vector2(velocity.x, velocity.z).length(), 6.5)
+			velocity.x = mur_dir.x * sp + (cible_p.x - global_position.x) * 8.0
+			velocity.z = mur_dir.z * sp + (cible_p.z - global_position.z) * 8.0
+			move_and_slide()
+			return
+	# parkour automatique : en courant vers un obstacle
+	if state == S.LOCO and is_on_floor() and pk_cd <= 0.0 and amount > 0.5:
+		var hv0 := Vector3(velocity.x, 0, velocity.z)
+		if hv0.length() > 3.6 and hv0.normalized().dot(mv.normalized()) > 0.7:
+			if _parkour_check(hv0): return
 	match state:
 		S.LOCO, S.EMOTE, S.LAND:
 			if amount > 0.05:
@@ -381,19 +559,41 @@ func _physics_process(dt: float) -> void:
 	if is_on_floor():
 		air_jumps = 0
 		if want_jump and state in [S.LOCO, S.EMOTE, S.LAND, S.SLIDE]:
-			velocity.y = jump_velocity; state = S.AIR; state_t = 0.0
-			vis.play("Jump_Start", 0.06, 1.2, true)
+			var hvj := Vector3(velocity.x, 0, velocity.z)
+			if state == S.LOCO and _wallrun_check(hvj): return
+			if hvj.length() > 5.0:
+				# saut de ninja en pleine course : plus haut, plus loin
+				velocity.y = jump_velocity * 1.1
+				velocity.x *= 1.15; velocity.z *= 1.15
+				state = S.AIR; state_t = 0.0; ninja = true
+				vis.play("NinjaJump_Start", 0.05, 1.4, true)
+			else:
+				velocity.y = jump_velocity; state = S.AIR; state_t = 0.0; ninja = false
+				vis.play("Jump_Start", 0.06, 1.2, true)
 	else:
 		velocity.y -= gravity * dt
 		if want_jump and air_jumps == 0 and state in [S.AIR, S.LOCO]:
-			air_jumps = 1; velocity.y = jump_velocity * 0.95; state = S.AIR; state_t = 0.0
-			vis.play("DoubleJump", 0.06, 1.1, true)
+			air_jumps = 1; velocity.y = jump_velocity * (1.15 if ninja else 0.95); state = S.AIR; state_t = 0.0
+			vis.play("PK_NinjaDouble" if ninja else "DoubleJump", 0.06, 1.1, true)
 		if state == S.LOCO and velocity.y < -2.0: state = S.AIR; state_t = 0.0
 	var was_air := state == S.AIR
+	if was_air: chute_v = minf(chute_v, velocity.y)
 	move_and_slide()
 	if was_air and is_on_floor() and state_t > 0.1:
-		state = S.LAND; state_t = 0.0
-		vis.play("Jump_Land", 0.05, 1.3, true)
+		var hv_l := Vector3(velocity.x, 0, velocity.z)
+		if chute_v < -6.0 and hv_l.length() > 2.0:
+			# grande chute en mouvement : roulade de réception
+			state = S.ROLL; state_t = 0.0; roll_dir = hv_l.normalized()
+			state_len = vis.length("Roll") * 0.85
+			vis.play("Roll", 0.05, 1.2, true)
+			parkour.emit("Roll")
+		elif ninja:
+			state = S.LAND; state_t = 0.0
+			vis.play("NinjaJump_Land", 0.05, 1.8, true)
+		else:
+			state = S.LAND; state_t = 0.0
+			vis.play("Jump_Land", 0.05, 1.3, true)
+		chute_v = 0.0; ninja = false
 	# orientation du corps
 	var face := hv if hv.length() > 0.4 else Vector3.ZERO
 	if state == S.ATTACK and mv.length() > 0.1 and state_t < 0.1: face = mv
@@ -412,3 +612,4 @@ func _animate(s: float) -> void:
 			else: vis.play("Sprint_Loop", 0.22, s / 6.0)
 		S.AIR:
 			if state_t > 0.35 and vis.current in ["Jump_Start", "DoubleJump"]: vis.play("Jump_Loop", 0.2)
+			if state_t > 0.3 and vis.current in ["NinjaJump_Start", "WallRun_Jump_L", "WallRun_Jump_R"]: vis.play("NinjaJump_Idle_Loop", 0.2)

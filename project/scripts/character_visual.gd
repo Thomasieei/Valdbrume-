@@ -111,11 +111,15 @@ func play(n: String, blend := -1.0, speed := 1.0, restart := false) -> void:
 func length(n: String) -> float: return AnimBank.length(n)
 
 ## armes : réglage de la prise en main (os, rotation, décalage) pour chaque modèle
+## armes tenues : modèle, main, point de prise (mètres depuis le pommeau ; -1 = au centre,
+## pour l'arc), rotation autour de l'axe de la prise (degrés). La pose exacte dans la
+## main est CALCULÉE à partir du squelette (jointures, pouce) : la lame sort du poing
+## côté pouce, le tranchant dans l'axe des doigts.
 const ARMES := {
-	"epee": ["Human_Sword", "hand_r", Vector3(0, 0, -90), Vector3(0.0, 0.08, 0.02)],
-	"epee_lourde": ["Human_Greatsword", "hand_r", Vector3(0, 0, -90), Vector3(0.0, 0.08, 0.02)],
-	"dague": ["Human_Dagger", "hand_r", Vector3(0, 0, -90), Vector3(0.0, 0.08, 0.02)],
-	"arc": ["HumanArcher_Bow", "hand_l", Vector3(90, 0, 0), Vector3(0.0, 0.08, -0.02)],
+	"epee": {"f": "Human_Sword", "os": "hand_r", "prise": 0.085, "tourne": 0.0},
+	"epee_lourde": {"f": "Human_Greatsword", "os": "hand_r", "prise": 0.13, "tourne": 0.0},
+	"dague": {"f": "Human_Dagger", "os": "hand_r", "prise": 0.05, "tourne": 0.0},
+	"arc": {"f": "HumanArcher_Bow", "os": "hand_l", "prise": -1.0, "tourne": 0.0},
 }
 ## dans le dos (rangée) : sur la colonne, en diagonale
 const DOS := {
@@ -146,6 +150,63 @@ func _prop(fichier: String, bone: String, rot: Vector3, pos: Vector3) -> Node3D:
 	w.position = pos
 	return att
 
+## repère du poing dans l'espace de l'os de la main (pose de repos) :
+## g = axe de la prise (du petit doigt vers l'index), f = direction des doigts,
+## n = normale de la paume (côté pouce), c = centre du poing fermé
+func repere_poing(bone: String) -> Dictionary:
+	var sk := skeleton
+	var side := bone.substr(bone.length() - 2)
+	var inv := sk.get_bone_global_rest(sk.find_bone(bone)).affine_inverse()
+	var p_idx: Vector3 = inv * sk.get_bone_global_rest(sk.find_bone("index_01" + side)).origin
+	var p_pin: Vector3 = inv * sk.get_bone_global_rest(sk.find_bone("pinky_01" + side)).origin
+	var p_mid: Vector3 = inv * sk.get_bone_global_rest(sk.find_bone("middle_01" + side)).origin
+	var p_th: Vector3 = inv * sk.get_bone_global_rest(sk.find_bone("thumb_01" + side)).origin
+	var g := (p_idx - p_pin).normalized()
+	var f := p_mid.normalized()
+	f = (f - g * f.dot(g)).normalized()
+	var n := g.cross(f)
+	var kmid := (p_idx + p_pin) * 0.5
+	if n.dot(p_th - kmid) < 0.0: n = -n
+	return {"g": g, "f": f, "n": n, "c": kmid + n * 0.032 + f * 0.018}
+
+## arme posée dans le poing : axe long → axe de la prise, largeur → direction des doigts
+func _tenue(spec: Dictionary) -> Node3D:
+	var att := _prop(spec.f, spec.os, Vector3.ZERO, Vector3.ZERO)
+	var w: Node3D = att.get_child(0)
+	var box := AABB(); var first := true
+	for m in w.find_children("*", "MeshInstance3D", true, false):
+		var b: AABB = _rel_xf(w, m) * (m as MeshInstance3D).get_aabb()
+		box = b if first else box.merge(b); first = false
+	var ax := box.get_longest_axis_index()
+	var dims := [box.size.x, box.size.y, box.size.z]
+	var ax2 := 0
+	for k in 3:
+		if k != ax and (ax2 == ax or dims[k] > dims[ax2]): ax2 = k
+	var lo: float = box.position[ax]; var hi: float = box.end[ax]
+	var s := 1.0 if absf(hi) >= absf(lo) else -1.0          # la pointe est l'extrémité la plus loin de l'origine
+	var a := Vector3.ZERO; a[ax] = s
+	var e := Vector3.ZERO; e[ax2] = 1.0
+	var hp := box.get_center()
+	if float(spec.prise) >= 0.0:
+		var pommeau := lo if s > 0.0 else hi
+		hp[ax] = pommeau + s * float(spec.prise)
+	var r := repere_poing(spec.os)
+	var g: Vector3 = r.g
+	var f: Vector3 = (r.f as Vector3).rotated(g, deg_to_rad(float(spec.tourne)))
+	var bw := Basis(a, e, a.cross(e))
+	var bh := Basis(g, f, g.cross(f))
+	var rot := bh * bw.inverse()
+	w.transform = Transform3D(rot, (r.c as Vector3) - rot * hp)
+	return att
+
+func _rel_xf(root: Node3D, n: Node3D) -> Transform3D:
+	var xf := Transform3D.IDENTITY
+	var cur: Node = n
+	while cur and cur != root:
+		if cur is Node3D: xf = (cur as Node3D).transform * xf
+		cur = cur.get_parent()
+	return xf
+
 func set_weapon(kind: String) -> void:
 	if weapon: weapon.queue_free(); weapon = null; weapon_mesh = null
 	for e in extras:
@@ -160,14 +221,12 @@ func set_weapon(kind: String) -> void:
 		att.add_child(l); extras.append(att)
 		return
 	if not ARMES.has(kind): return
-	var a: Array = ARMES[kind]
-	weapon = _prop(a[0], a[1], a[2], a[3])
+	weapon = _tenue(ARMES[kind])
 	weapon_mesh = weapon.get_child(0)
 
 ## arme rangée dans le dos (habitants devenus chasseurs)
 func set_back_weapon(kind: String) -> void:
-	var a: Array = ARMES[kind]
-	extras.append(_prop(a[0], "spine_03", DOS[kind][0], DOS[kind][1]))
+	extras.append(_prop(ARMES[kind].f, "spine_03", DOS[kind][0], DOS[kind][1]))
 
 ## garde et pointe de l'arme dans son propre repère (axe le plus long du modèle)
 func weapon_axis() -> Array:

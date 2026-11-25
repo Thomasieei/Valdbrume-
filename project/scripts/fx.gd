@@ -110,3 +110,53 @@ static func choc(parent: Node, pos: Vector3, taille := 1.0, col := Color(1.0, 0.
 	var tw := mi.create_tween()
 	tw.tween_method(func(v: float): m.set_shader_parameter("progress", v), 0.0, 1.0, duree)
 	tw.tween_callback(mi.queue_free)
+
+## flèche (modèle construit ici, orientée vers -Z comme une caméra) : fût en bois,
+## pointe d'acier en losange, trois pennes rouge et blanc, encoche
+static var _arrow_mesh: ArrayMesh
+static func fleche_mesh() -> ArrayMesh:
+	if _arrow_mesh: return _arrow_mesh
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var L := 0.78
+	# fût (6 faces) de z = 0 (encoche) à z = -L
+	var r := 0.0055
+	var wood := Color(0.55, 0.38, 0.2)
+	for i in 6:
+		var a0 := TAU * i / 6.0; var a1 := TAU * (i + 1) / 6.0
+		var p0 := Vector3(cos(a0) * r, sin(a0) * r, 0.0); var p1 := Vector3(cos(a1) * r, sin(a1) * r, 0.0)
+		var q0 := p0 + Vector3(0, 0, -L); var q1 := p1 + Vector3(0, 0, -L)
+		st.set_color(wood)
+		var nrm := Vector3(cos((a0 + a1) * 0.5), sin((a0 + a1) * 0.5), 0)
+		st.set_normal(nrm); st.add_vertex(p0); st.set_normal(nrm); st.add_vertex(q0); st.set_normal(nrm); st.add_vertex(p1)
+		st.set_normal(nrm); st.add_vertex(p1); st.set_normal(nrm); st.add_vertex(q0); st.set_normal(nrm); st.add_vertex(q1)
+	# pointe : losange en 4 faces
+	var steel := Color(0.78, 0.8, 0.84)
+	var base := -L; var tip := -L - 0.075; var w := 0.017
+	var ring := [Vector3(w, 0, base - 0.02), Vector3(0, w * 0.35, base - 0.02), Vector3(-w, 0, base - 0.02), Vector3(0, -w * 0.35, base - 0.02)]
+	for i in 4:
+		var a: Vector3 = ring[i]; var b: Vector3 = ring[(i + 1) % 4]
+		for tri in [[a, b, Vector3(0, 0, tip)], [b, a, Vector3(0, 0, base + 0.005)]]:
+			var nn: Vector3 = ((tri[1] - tri[0]) as Vector3).cross(tri[2] - tri[0]).normalized()
+			for v in tri: st.set_color(steel); st.set_normal(nn); st.add_vertex(v)
+	# pennes : trois triangles fins à 120°
+	for i in 3:
+		var ang := TAU * i / 3.0 + 0.3
+		var d := Vector3(cos(ang), sin(ang), 0)
+		var col := Color(0.85, 0.12, 0.1) if i == 0 else Color(0.95, 0.93, 0.88)
+		var v0 := d * r + Vector3(0, 0, -0.03); var v1 := d * 0.024 + Vector3(0, 0, -0.06); var v2 := d * r + Vector3(0, 0, -0.16)
+		var nn2 := d.cross(Vector3(0, 0, 1))
+		for v in [v0, v1, v2]: st.set_color(col); st.set_normal(nn2); st.add_vertex(v)
+		for v in [v0, v2, v1]: st.set_color(col); st.set_normal(-nn2); st.add_vertex(v)
+	_arrow_mesh = st.commit()
+	var m := StandardMaterial3D.new()
+	m.vertex_color_use_as_albedo = true; m.roughness = 0.55; m.metallic = 0.25
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_arrow_mesh.surface_set_material(0, m)
+	return _arrow_mesh
+
+static func fleche_node() -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = fleche_mesh()
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return mi

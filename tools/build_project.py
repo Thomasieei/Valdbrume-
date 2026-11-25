@@ -196,6 +196,10 @@ def build_characters():
     for f in ('UAL1.glb', 'UAL2.glb'):
         shutil.copy(os.path.join(ROOT, 'vendor', 'quaternius', 'animations', f), os.path.join(adir, f))
         write_import_anim(os.path.join(adir, f))
+    # animations de parkour fournies (même squelette)
+    pk = os.path.join(ROOT, 'vendor', 'quaternius', 'animations', 'parkour')
+    for f in os.listdir(pk):
+        shutil.copy(os.path.join(pk, f), os.path.join(adir, f)); write_import_anim(os.path.join(adir, f))
     bdir = os.path.join(cdir, 'base'); os.makedirs(bdir, exist_ok=True)
     src = os.path.join(ROOT, 'vendor', 'quaternius', 'base_characters')
     for f in os.listdir(src):
@@ -226,6 +230,15 @@ def main():
     import lamps
     meta['lampes'] = lamps.positions()
     lamps.build_mesh(os.path.join(GEN, 'lampadaire.glb')); write_import_scene(os.path.join(GEN, 'lampadaire.glb'))
+    import props
+    pdir = os.path.join(GEN, 'props'); os.makedirs(pdir, exist_ok=True)
+    props.build_meshes(pdir)
+    for t, (src, _b) in props.TYPES.items():
+        if src: shutil.copy(os.path.join(props.CC, src), os.path.join(pdir, t + '.glb'))
+    for f in os.listdir(pdir):
+        if f.endswith('.glb'): write_import_scene(os.path.join(pdir, f))
+    meta['props'] = props.PLACES
+    meta['boxes'] += props.boxes()
     for (x, z, _r) in meta['lampes']:
         meta['boxes'].append([x, 1.6, z, 0.3, 3.2, 0.3])     # le fût arrête le joueur
     meta['city'] = list(skyline.CITY)

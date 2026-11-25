@@ -64,6 +64,7 @@ func _ready() -> void:
 	elif "--diag-anim" in args: _diag_anim.call_deferred()
 	elif "--combat" in args: _test_combat.call_deferred()
 	elif "--mission" in args: _test_mission.call_deferred()
+	elif "--parcours" in args: _test_parcours.call_deferred()
 
 ## K.-O. : on se réveille à la pharmacie, soigné par Inès
 func _ko() -> void:
@@ -666,4 +667,114 @@ func _test_mission() -> void:
 	await _shot(out, "86_mission_terminee", report)
 	rep["mission_fin"] = quests.etat.balafre.duplicate()
 	print("MISSION ", JSON.stringify(rep))
+	get_tree().quit()
+
+
+# ------------------------------------------------------------------ parkour et armes, joués
+## Le héros court vers de vrais obstacles de la ville ; chaque mouvement de parkour
+## est filmé de côté en 6 images (planche). Puis gros plans des armes en main.
+var _pk_log: Array = []
+var _pk_film := {"on": true, "n": 0}
+var _pk_out := ""
+
+func _on_pk(nom: String) -> void:
+	_pk_log.append([nom, snapped(player.global_position.x, 0.1), snapped(player.global_position.z, 0.1)])
+	if _pk_film.on and int(_pk_film.n) < 9:
+		_pk_film.n = int(_pk_film.n) + 1
+		var fwd := Basis(Vector3.UP, player.vis.rotation.y) * Vector3(0, 0, 1)
+		_filme(_pk_out, "9%d_parkour_%s" % [int(_pk_film.n), nom.to_lower()], player, fwd, [0, 6, 12, 19, 27, 38])
+
+func _course(cible: Vector3, max_t: float, sprint := true) -> void:
+	var t := 0.0
+	while t < max_t and Vector2(player.global_position.x - cible.x, player.global_position.z - cible.z).length() > 1.2:
+		if player.state not in [13, 14]:
+			_face_to(cible); player.pitch = -0.12
+			player.move_input = Vector2(0, -1); player.sprint_held = sprint
+		await get_tree().physics_frame; t += 1.0 / 60.0
+	player.move_input = Vector2.ZERO; player.sprint_held = false
+
+func _test_parcours() -> void:
+	var out := ProjectSettings.globalize_path("res://").path_join("../captures")
+	DirAccess.make_dir_recursive_absolute(out)
+	var report := []
+	for k in quests.etat.keys(): quests.etat.erase(k)
+	life.minute = 11 * 60; life.warp(); day.force_hour = 11.0; day.apply(11.0)
+	_pk_out = out
+	player.parkour.connect(_on_pk)
+	# 1) chantier du Passage de la Bourse : séparateurs, caisses, en pleine course
+	player.global_position = Vector3(200.5, 0.3, -118.0)
+	await _wait(20)
+	await _course(Vector3(200.5, 0, -24.0), 40.0)
+	# 2) vrille par-dessus une voiture garée sur le Grand Boulevard
+	player.global_position = Vector3(-170.0, 0.3, -11.3)
+	player.velocity = Vector3.ZERO
+	await _wait(20)
+	await _course(Vector3(-170.0, 0, 3.0), 8.0)
+	# 3) escalade d'une benne dans le Passage des Lanternes
+	player.global_position = Vector3(-198.0, 0.3, -100.0)
+	await _wait(20)
+	await _course(Vector3(-206.0, 0, -100.0), 5.0, false)
+	await _wait(40)
+	# 4) course sur le mur du passage
+	player.global_position = Vector3(-198.0, 0.3, -56.0)
+	await _wait(20)
+	var t := 0.0
+	while t < 3.0 and player.state != 14:
+		_face_to(Vector3(-198.0, 0, -20.0)); player.move_input = Vector2(0, -1); player.sprint_held = true
+		if player.global_position.z > -51.0: player.request_jump()
+		await get_tree().physics_frame; t += 1.0 / 60.0
+	await _course(Vector3(-199.0, 0, -30.0), 3.0)
+	# 5) saut de ninja, double saut, réception en roulade, sur le boulevard
+	player.global_position = Vector3(-140.0, 0.3, 1.5)
+	await _wait(20)
+	t = 0.0
+	var saute := 0
+	while t < 4.0:
+		_face_to(Vector3(-100.0, 0, 1.5)); player.move_input = Vector2(0, -1); player.sprint_held = true
+		if t > 1.4 and saute == 0: player.request_jump(); saute = 1
+		if t > 1.75 and saute == 1: player.request_jump(); saute = 2
+		await get_tree().physics_frame; t += 1.0 / 60.0
+	player.move_input = Vector2.ZERO; player.sprint_held = false
+	_pk_film.on = false
+	await _wait(30)
+	# 6) armes : gros plans en main
+	player.global_position = Vector3(-120.0, 0.3, 9.0)
+	player.velocity = Vector3.ZERO
+	await _wait(10)
+	var cam := Camera3D.new(); add_child(cam); cam.fov = 40.0
+	ui.visible = false
+	for spec in [["epee", "Sword_Idle", 0.4], ["epee", "Sword_Light_A", 0.45], ["arc", "Bow_Aim_Neutral", 0.5], ["arc", "Bow_Shoot", 0.25], ["epee_lourde", "Sword_Idle", 0.4], ["dague", "Sword_Idle", 0.4]]:
+		player.vis.set_weapon(spec[0])
+		player.style_i = 3 if spec[0] == "arc" else 1
+		player.state = 0
+		player.vis.rotation.y = 0.0
+		player.vis.play(spec[1], 0.0, 1.0, true)
+		player.vis.anim.seek(player.vis.length(spec[1]) * float(spec[2]), true)
+		player.vis.anim.pause()
+		await _wait(3)
+		var hand: Vector3 = player._bone_pos("hand_l" if spec[0] == "arc" else "hand_r")
+		for vue in [[Vector3(1.3, 0.25, 1.2), "a"], [Vector3(-1.2, 0.3, 1.3), "b"]]:
+			cam.global_position = hand + vue[0]; cam.look_at(hand + Vector3(0, 0.05, 0)); cam.current = true
+			await _wait(4)
+			get_viewport().get_texture().get_image().save_png(out.path_join("99_arme_%s_%s_%s.png" % [spec[0], spec[1].to_lower(), vue[1]]))
+		player.vis.anim.play()
+	# 7) tir à l'arc sur une façade : flèches en vol puis plantées
+	player.vis.set_weapon("arc"); player.style_i = 3
+	player.cam.current = true; ui.visible = true
+	player.global_position = Vector3(-120.0, 0.3, 4.0)
+	_face_to(Vector3(-120.0, 1.5, 16.0))
+	player.vis.rotation.y = 0.0
+	var imgs := []
+	for i in 5:
+		player.state = 0
+		player.attack(false)
+		for f in 14: await get_tree().physics_frame
+		imgs.append(_grab())
+	for f in 40: await get_tree().physics_frame
+	cam.global_position = Vector3(-118.5, 1.8, 10.5); cam.look_at(Vector3(-120.0, 1.4, 13.0)); cam.current = true
+	ui.visible = false
+	await _wait(3)
+	imgs.append(_grab())
+	_planche(out, "99_fleches_tir_et_plantees", imgs)
+	print("PARCOURS ", JSON.stringify({"mouvements": _pk_log}))
 	get_tree().quit()
