@@ -103,6 +103,9 @@ func _ready() -> void:
 	add_to_group("heros")
 	trail = WeaponTrail.new()
 	add_child(trail)
+	# armes chargées d'avance : pas d'à-coup au premier changement d'arme
+	for k in CharacterVisual.ARMES:
+		load("res://assets/characters/props/%s.fbx" % CharacterVisual.ARMES[k].f)
 	encoche = Fx.fleche_node()
 	encoche.top_level = true
 	encoche.visible = false
