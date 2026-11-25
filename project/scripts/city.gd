@@ -15,12 +15,12 @@ func _ready() -> void:
 	_load_chunks()
 	_load_skyline()
 	_build_collisions()
-	_build_occluders()
-	printerr("DEMARRAGE lampadaires")
-	_build_lamps()
-	printerr("DEMARRAGE mobilier")
 	_build_props()
-	printerr("DEMARRAGE mobilier posé")
+	_build_ladders()
+	_build_lamps()
+	# occulteurs en dernier, une fois le démarrage fini : leur arbre est construit sur les fils
+	# de travail, et un chargement de ressource pendant cette construction peut tout bloquer
+	_build_occluders.call_deferred()
 
 func _load_chunks() -> void:
 	var root := Node3D.new()
@@ -179,17 +179,20 @@ func _process(dt: float) -> void:
 # ------------------------------------------------------------ mobilier urbain et obstacles
 func _build_props() -> void:
 	if not meta.has("props"): return
-	# pièces de chaque modèle (maillage + position dans le modèle)
-	var parts := {}
+	# 1) tous les modèles chargés d'abord, sans créer de matériau entre deux chargements
+	#    (créer un matériau lance la compilation de son shader sur les fils de travail :
+	#    mêlé aux chargements, cela peut bloquer le démarrage)
+	var scenes := {}
 	for p in meta.props:
 		var t: String = p[0]
-		if parts.has(t): continue
-		var ps: PackedScene = load(GEN + "props/%s.glb" % t)
-		var src: Node3D = ps.instantiate()
+		if not scenes.has(t): scenes[t] = load(GEN + "props/%s.glb" % t)
+	# 2) pièces de chaque modèle (maillage + position dans le modèle)
+	var parts := {}
+	for t in scenes:
+		var src: Node3D = (scenes[t] as PackedScene).instantiate()
 		var list := []
 		for mi in src.find_children("*", "MeshInstance3D", true, false):
-			var xf := _rel(src, mi)
-			list.append([_prop_mesh((mi as MeshInstance3D).mesh), xf])
+			list.append([_prop_mesh((mi as MeshInstance3D).mesh), _rel(src, mi)])
 		parts[t] = list
 		src.free()
 	var cells := {}
@@ -218,6 +221,26 @@ func _build_props() -> void:
 			mmi.visibility_range_end = 210.0 if big else 120.0
 			mmi.visibility_range_end_margin = 10.0
 			root.add_child(mmi)
+
+## échelles de secours (accès aux toits) : modèle unique, fer peint
+func _build_ladders() -> void:
+	var list: Array = meta.get("echelles", [])
+	if list.is_empty(): return
+	var src: Node3D = (load(GEN + "props/echelle.glb") as PackedScene).instantiate()
+	var meshes := []
+	for mi in src.find_children("*", "MeshInstance3D", true, false):
+		meshes.append([_prop_mesh((mi as MeshInstance3D).mesh), _rel(src, mi)])
+	src.free()
+	for e in list:
+		var f := Basis(Vector3.UP, deg_to_rad(float(e[4]))) * Vector3(0, 0, 1)
+		var n := Node3D.new(); n.name = "Echelle"
+		n.position = Vector3(float(e[0]), float(e[2]), float(e[1])) + f * 0.33
+		n.rotation.y = atan2(-f.x, -f.z)
+		for m in meshes:
+			var mi := MeshInstance3D.new(); mi.mesh = m[0]; mi.transform = m[1]
+			mi.visibility_range_end = 160.0
+			n.add_child(mi)
+		add_child(n)
 
 ## matériaux simples et opaques pour le mobilier (palette de couleurs), vitres sombres
 var _prop_mats := {}

@@ -323,4 +323,8 @@ class City:
         cx, cz = (l.x0+l.x1)/2, (l.z0+l.z1)/2
         spots = [(-0.25, -0.2), (0.2, 0.15), (0.05, -0.3)][: 1 + (l.var % 3)]
         for fx, fz in spots:
-            s.put('Prop_ACUnit', cx + fx*w, l.top - 0.2, cz + fz*d, 90*(l.var % 2), ((1,1,1),(1,1,1),(1,1,1)))
+            x, z = cx + fx*w, cz + fz*d
+            s.put('Prop_ACUnit', x, l.top - 0.2, z, 90*(l.var % 2), ((1,1,1),(1,1,1),(1,1,1)))
+            # collision (toits praticables) : caisson 0,89 x 0,6 x 0,35 du modèle, tourné comme lui
+            if l.var % 2: s.boxes.append((x + 0.155, l.top + 0.1, z - 0.036, 0.37, 0.6, 0.91))
+            else:         s.boxes.append((x + 0.036, l.top + 0.1, z + 0.155, 0.91, 0.6, 0.37))

@@ -51,6 +51,7 @@ func _ready() -> void:
 	printerr("DEMARRAGE sons prêts")
 	player.pas.connect(func(s: String): Sfx.joue("echelle" if s == "echelle" else "pas", player.global_position, -4.0 if s == "course" else -9.0, 0.1))
 	player.echelles = city.meta.get("echelles", [])
+	player.receptacles = city.meta.get("receptacles", [])
 	defi = Node.new(); defi.name = "Defi"
 	defi.set_script(load("res://scripts/defi.gd"))
 	add_child(defi)
@@ -80,6 +81,7 @@ func _ready() -> void:
 	elif "--mission" in args: _test_mission.call_deferred()
 	elif "--parcours" in args: _test_parcours.call_deferred()
 	elif "--toits" in args: _test_toits.call_deferred()
+	elif "--plongeon" in args: _test_plongeon.call_deferred()
 
 ## K.-O. : on se réveille à la pharmacie, soigné par Inès
 func _ko() -> void:
@@ -811,6 +813,41 @@ func _test_parcours() -> void:
 
 
 # ------------------------------------------------------------------ parcours des toits, joué
+func _test_plongeon() -> void:
+	var out := ProjectSettings.globalize_path("res://").path_join("../captures")
+	DirAccess.make_dir_recursive_absolute(out)
+	life.minute = 16 * 60; life.warp(); day.force_hour = 16.0; day.apply(16.0)
+	_pk_out = out; _pk_film = {"on": false, "n": 0}
+	player.parkour.connect(_on_pk)
+	player.global_position = Vector3(-190.0, 13.3, -64.1)
+	await _wait(20)
+	printerr("ETAPE plongeon, réceptacles=", player.receptacles)
+	_course(Vector3(-206.0, 0, -64.0), 6.0, true)
+	# vues fixes depuis la ruelle : la chute, puis la réception dans les sacs
+	var cam := Camera3D.new(); add_child(cam); cam.fov = 62.0
+	var vu := {"chute": false, "sacs": false}
+	for i in 600:
+		await get_tree().process_frame
+		var pp := player.global_position
+		if not vu.chute and not player.plongeon.is_empty() and pp.y < 8.5:
+			vu.chute = true
+			cam.global_position = Vector3(-198.2, 1.7, -57.5); cam.look_at(pp + Vector3.UP * 0.5); cam.current = true
+			await _wait(1)
+			get_viewport().get_texture().get_image().save_png(out.path_join("9p_plongeon_chute.png"))
+			cam.current = false
+		if not vu.sacs and player.state == 11 and player.state_t > 0.25:
+			vu.sacs = true
+			cam.global_position = Vector3(-197.4, 2.3, -61.8); cam.look_at(pp + Vector3.UP * 0.3); cam.current = true
+			await _wait(1)
+			get_viewport().get_texture().get_image().save_png(out.path_join("9q_plongeon_sacs.png"))
+			cam.current = false
+			break
+	await _wait(120)
+	for i in 8:
+		printerr("APRES ", player.global_position.snapped(Vector3.ONE * 0.1), " etat=", player.state, " anim=", player.vis.current)
+		await _wait(15)
+	get_tree().quit()
+
 func _test_toits() -> void:
 	printerr("ETAPE test lancé")
 	var out := ProjectSettings.globalize_path("res://").path_join("../captures")

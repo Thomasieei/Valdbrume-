@@ -62,6 +62,8 @@ var mur_dir := Vector3.ZERO
 var mur_cote := "L"
 signal parkour(nom: String)
 signal pas(surface: String)          # bruit de pas, d'échelle…
+var receptacles: Array = []      # tas de sacs où l'on peut plonger depuis un toit [x, y, z]
+var plongeon := {}               # saut de la foi en cours : {cible, t}
 var echelles: Array = []         # [x, z, bas, haut, direction du regard]
 var echelle: Array = []
 var _pas_d := 0.0
@@ -400,6 +402,44 @@ func _parkour_check(hv: Vector3, lent := false, dir_force := Vector3.ZERO) -> bo
 	if h2 <= 1.45: return _pk_start("ClimbUp_1m", "grimpe", pos, p_top, top_p.y, 1.25, 0.0)
 	return _pk_start("ClimbUp_2m", "grimpe", pos, p_top, top_p.y, 1.15, 0.0)
 
+## saut de la foi : en s'élançant d'un toit au-dessus d'un tas de sacs, on y plonge
+func _plongeon_check() -> void:
+	var pos := global_position
+	var fwd := Vector3(velocity.x, 0, velocity.z).normalized()
+	for r in receptacles:
+		var c := Vector3(float(r[0]), float(r[1]), float(r[2]))
+		var d := Vector3(c.x - pos.x, 0, c.z - pos.z)
+		if pos.y - c.y < 4.0 or d.length() > 11.0: continue
+		if d.length() > 1.0 and d.normalized().dot(fwd) < 0.2: continue
+		if velocity.y > -3.0: velocity.y = 2.4
+		plongeon = {"cible": c, "t": 0.0, "dos": false}
+		parkour.emit("Plongeon")
+		Sfx.joue("vent", pos, -3.0, 0.05)
+		return
+
+func _plongeon_update(dt: float) -> Vector3:
+	var c: Vector3 = plongeon.cible
+	plongeon.t = float(plongeon.t) + dt
+	var pos := global_position
+	# temps restant avant d'atteindre la hauteur du tas (chute balistique)
+	var dy := pos.y - c.y
+	var vy := velocity.y
+	var t_reste := (vy + sqrt(maxf(vy * vy + 2.0 * gravity * maxf(dy, 0.0), 0.0))) / gravity
+	var reste := Vector3(c.x - pos.x, 0, c.z - pos.z)
+	var hvp := reste / maxf(t_reste, 0.12)
+	if hvp.length() > 0.3: vis.rotation.y = lerp_angle(vis.rotation.y, atan2(hvp.x, hvp.z), 1.0 - exp(-6.0 * dt))
+	# pose : plongeon tête la première, puis on bascule sur le dos juste avant les sacs
+	var pivot := Vector3.UP * 1.0
+	if t_reste > 0.42:
+		vis.rotation.x = lerpf(vis.rotation.x, 1.05, 1.0 - exp(-3.5 * dt))
+	else:
+		if not plongeon.dos:
+			plongeon.dos = true
+			vis.play("LiftAir_Fall_Air_Loop", 0.12)
+		vis.rotation.x = lerpf(vis.rotation.x, -0.25, 1.0 - exp(-10.0 * dt))
+	vis.position = pivot - vis.basis * pivot
+	return hvp
+
 func _pk_start(anim: String, kind: String, p0: Vector3, p1: Vector3, y1: float, vitesse: float, v_sortie: float) -> bool:
 	var dur := vis.length(anim) / vitesse
 	if dur <= 0.05: return false
@@ -439,6 +479,7 @@ func _pk_update(dt: float) -> void:
 		state = S.AIR; state_t = 0.0; pk_cd = 0.2; ninja = true; air_jumps = 0
 		velocity = (pk.fwd as Vector3) * maxf(float(pk.v), 6.5) + Vector3.UP * 1.2
 		vis.play("NinjaJump_Idle_Loop", 0.15)
+		_plongeon_check()
 		return
 	if t >= dur:
 		state = S.LOCO; state_t = 0.0; pk_cd = 0.35
@@ -576,7 +617,7 @@ func _physics_process(dt: float) -> void:
 		_echelle_update(dt, mv)
 		return
 	if state == S.LOCO and is_on_floor() and not echelles.is_empty() and _echelle_check(mv): return
-	if state == S.AIR and state_t > 0.12 and _rebord_check(): return
+	if state == S.AIR and state_t > 0.12 and plongeon.is_empty() and _rebord_check(): return
 	if state == S.PARKOUR:
 		_pk_update(dt)
 		_animate(0.0)
@@ -604,6 +645,11 @@ func _physics_process(dt: float) -> void:
 			if _parkour_check(hv0): return
 		elif hv0.length() > 1.0 and hv0.normalized().dot(mv.normalized()) > 0.7:
 			if _parkour_check(hv0, true): return
+		elif hv0.length() <= 1.0 and state_t > 0.15:
+			# bloqué contre un rebord en poussant le stick : on l'escalade
+			var md := Vector3(mv.x, 0, mv.z).normalized()
+			if _parkour_check(md * 2.0, true, md): return
+			pk_cd = 0.2
 	match state:
 		S.LOCO, S.EMOTE, S.LAND:
 			if amount > 0.05:
@@ -665,10 +711,13 @@ func _physics_process(dt: float) -> void:
 			target = Vector3.ZERO
 			if state_t > state_len: state = S.LOCO
 		S.AIR:
-			target = hv.lerp(mv.normalized() * max(hv.length(), jog_speed) if amount > 0.05 else hv, 2.5 * dt)
+			if not plongeon.is_empty():
+				target = _plongeon_update(dt)
+			else:
+				target = hv.lerp(mv.normalized() * max(hv.length(), jog_speed) if amount > 0.05 else hv, 2.5 * dt)
 	var accel := 24.0 if is_on_floor() else 8.0
 	knock = knock.move_toward(Vector3.ZERO, 12.0 * dt)
-	if state in [S.ROLL, S.SLIDE, S.ATTACK, S.HIT, S.DEAD, S.LAUNCH, S.SOL, S.GETUP]: hv = target
+	if state in [S.ROLL, S.SLIDE, S.ATTACK, S.HIT, S.DEAD, S.LAUNCH, S.SOL, S.GETUP] or not plongeon.is_empty(): hv = target
 	else: hv = hv.move_toward(target, accel * dt)
 	velocity.x = hv.x; velocity.z = hv.z
 	# saut / double saut
@@ -694,10 +743,12 @@ func _physics_process(dt: float) -> void:
 				vis.play("Jump_Start", 0.06, 1.2, true)
 	else:
 		velocity.y -= gravity * dt
-		if want_jump and air_jumps == 0 and state in [S.AIR, S.LOCO]:
+		if want_jump and air_jumps == 0 and plongeon.is_empty() and state in [S.AIR, S.LOCO]:
 			air_jumps = 1; velocity.y = jump_velocity * (1.15 if ninja else 0.95); state = S.AIR; state_t = 0.0
 			vis.play("PK_NinjaDouble" if ninja else "DoubleJump", 0.06, 1.1, true)
-		if state == S.LOCO and velocity.y < -2.0: state = S.AIR; state_t = 0.0
+		if state == S.LOCO and velocity.y < -2.0:
+			state = S.AIR; state_t = 0.0
+			if Vector2(velocity.x, velocity.z).length() > 3.0: _plongeon_check()
 	# bruits de pas (au rythme de la foulée)
 	if is_on_floor() and state in [S.LOCO, S.LAND]:
 		var vh := Vector2(velocity.x, velocity.z).length()
@@ -705,12 +756,23 @@ func _physics_process(dt: float) -> void:
 			_pas_d += vh * dt
 			if _pas_d > (0.8 if vh > 5.0 else 0.68 if vh > 3.0 else 0.55):
 				_pas_d = 0.0; pas.emit("course" if vh > 5.0 else "pas")
+	if not plongeon.is_empty() and state != S.AIR:
+		plongeon = {}; vis.rotation.x = 0.0; vis.position = Vector3.ZERO
 	var was_air := state == S.AIR
 	if was_air: chute_v = minf(chute_v, velocity.y)
 	move_and_slide()
 	if was_air and is_on_floor() and state_t > 0.1:
 		var hv_l := Vector3(velocity.x, 0, velocity.z)
-		if chute_v < -6.0 and hv_l.length() > 2.0:
+		if not plongeon.is_empty():
+			# réception sur le dos dans les sacs, puis on se relève d'un bond
+			plongeon = {}; vis.rotation.x = 0.0; vis.position = Vector3.ZERO
+			state = S.SOL; state_t = 0.0; velocity = Vector3.ZERO
+			vis.play("LiftAir_Fall_Impact", 0.05, 1.1, true)
+			parkour.emit("Plongeon_Reception")
+			Sfx.joue("chute", global_position, 0.0, 0.05); Sfx.joue("reception", global_position, -2.0)
+			Fx.choc(get_parent(), global_position + Vector3(0, 0.05, 0), 2.2, Color(0.2, 0.22, 0.2), true, 0.35)
+			shake = 0.35
+		elif chute_v < -6.0 and hv_l.length() > 2.0:
 			# grande chute en mouvement : roulade de réception
 			state = S.ROLL; state_t = 0.0; roll_dir = hv_l.normalized()
 			state_len = vis.length("Roll") * 0.85

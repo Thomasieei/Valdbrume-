@@ -243,6 +243,7 @@ def main():
     rooftops.ladder_mesh(os.path.join(pdir, 'echelle.glb')); write_import_scene(os.path.join(pdir, 'echelle.glb'))
     meta['echelles'] = rooftops.ECHELLES
     meta['anneaux'] = rooftops.ANNEAUX
+    meta['receptacles'] = rooftops.RECEPTACLES
     for (x, z, _r) in meta['lampes']:
         meta['boxes'].append([x, 1.6, z, 0.3, 3.2, 0.3])     # le fût arrête le joueur
     meta['city'] = list(skyline.CITY)

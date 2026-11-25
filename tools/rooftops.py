@@ -22,9 +22,16 @@ OBJETS_TOITS = [
     ['caisse', -213.0, 13.0, -100.5, 0],
     ['caisse', -205.5, 16.0, -86.0, 0],          # obstacle à franchir sur le toit haut
     ['caisse', -212.0, 13.0, -75.0, 0],
-    ['sacs', -199.5, 0.0, -65.2, 0], ['sacs', -199.5, 0.0, -64.6, 0], ['sacs', -199.5, 0.0, -64.0, 0],
-    ['sacs', -199.5, 0.6, -64.6, 0],             # tas de sacs : réception du saut final
+    ['tas_sacs', -199.6, 0.0, -64.6, 90],        # tas de sacs : réception du saut de la foi
+    # équipements de toit, posés hors de la trajectoire du parcours
+    ['cheminee', -215.8, 13.0, -102.6, 0], ['clim_toit', -206.0, 13.0, -102.8, 0], ['ventilation', -213.2, 13.0, -94.6, 0],
+    ['chateau_eau', -214.6, 16.0, -85.0, 20], ['ventilation', -205.0, 16.0, -90.6, 0],
+    ['cheminee', -215.6, 13.0, -71.2, 90], ['clim_toit', -206.0, 13.0, -71.5, 0],
+    ['cheminee', -185.0, 13.0, -80.6, 0], ['ventilation', -193.5, 13.0, -80.8, 0],
+    ['clim_toit', -185.5, 13.0, -60.0, 90], ['cheminee', -185.2, 13.0, -69.5, 90], ['ventilation', -192.8, 13.0, -59.6, 0],
 ]
+# tas de sacs où l'on peut plonger depuis un toit (saut de la foi) : dessus du tas
+RECEPTACLES = [[-199.6, 0.95, -64.6]]
 # anneaux du défi chronométré : [x, y, z] — départ au pied de l'échelle, arrivée dans les sacs
 ANNEAUX = [
     [-201.6, 1.2, -97.5],      # départ

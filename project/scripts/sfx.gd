@@ -25,6 +25,7 @@ const BANQUE := {
 	"souffle": ["souffle_0", "souffle_1", "souffle_2"],
 	"souffle_lourd": ["souffle_lourd_0", "souffle_lourd_1"],
 	"elan": ["elan"],
+	"vent": ["vent_chute"],
 	"corde": ["corde_arc"],
 	"fleche": ["fleche_vol"],
 }
