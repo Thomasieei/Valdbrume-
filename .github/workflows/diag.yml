@@ -30,8 +30,8 @@ jobs:
           for f in project/scripts/*.gd; do timeout 60 ~/godot/godot --headless --path project --check-only --script "res://scripts/$(basename $f)" 2>&1 | grep -E "SCRIPT ERROR|Parse Error|error\(" | sed "s|^|$(basename $f): |" || true; done
       - name: Effets
         run: |
-          mkdir -p captures; timeout 1500 xvfb-run -a -s "-screen 0 1280x720x24" ~/godot/godot --verbose --path project --rendering-method mobile --rendering-driver vulkan --resolution 1280x720 --fixed-fps 60 -- --parcours > captures/log.txt 2>&1 || true
-          grep -E "PARCOURS|SCRIPT|ERROR|capture" captures/log.txt | head -60; tail -40 captures/log.txt
+          mkdir -p captures; timeout 1500 xvfb-run -a -s "-screen 0 1280x720x24" ~/godot/godot --path project --rendering-method mobile --rendering-driver vulkan --resolution 1280x720 --fixed-fps 60 -- --parcours > captures/log.txt 2>&1 || true
+          grep -E "PARCOURS|SCRIPT|ERROR|capture|MOBILIER|ETAPE" captures/log.txt | head -60; grep -v "Loading resource\|Completed load\|RGB8\|backtrace\|\[[0-9]\]" captures/log.txt | tail -25
       - name: Publication
         run: |
           cd captures && git init -q && git checkout -q -b diag && git add . && git -c user.name=ci -c user.email=ci@x commit -qm diag

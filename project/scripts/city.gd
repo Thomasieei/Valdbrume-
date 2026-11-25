@@ -186,7 +186,7 @@ func _build_props() -> void:
 		var list := []
 		for mi in src.find_children("*", "MeshInstance3D", true, false):
 			var xf := _rel(src, mi)
-			list.append([mi.mesh, xf])
+			list.append([_prop_mesh((mi as MeshInstance3D).mesh), xf])
 		parts[t] = list
 		src.free()
 	var cells := {}
@@ -194,6 +194,7 @@ func _build_props() -> void:
 		var k := "%s|%d|%d" % [p[0], floori(float(p[1]) / 96.0), floori(float(p[2]) / 96.0)]
 		if not cells.has(k): cells[k] = []
 		cells[k].append(p)
+	print("MOBILIER types chargés : ", parts.size())
 	var root := Node3D.new(); root.name = "Mobilier"; add_child(root)
 	for k in cells:
 		var t: String = cells[k][0][0]
@@ -213,6 +214,29 @@ func _build_props() -> void:
 			mmi.visibility_range_end = 210.0 if big else 120.0
 			mmi.visibility_range_end_margin = 10.0
 			root.add_child(mmi)
+
+## matériaux simples et opaques pour le mobilier (palette de couleurs), vitres sombres
+var _prop_mats := {}
+func _prop_mesh(src: Mesh) -> Mesh:
+	var m := src.duplicate() as Mesh
+	for s in m.get_surface_count():
+		var old := m.surface_get_material(s)
+		var tex: Texture2D = null
+		var verre := false
+		if old is BaseMaterial3D:
+			tex = (old as BaseMaterial3D).albedo_texture
+			verre = (old as BaseMaterial3D).transparency != BaseMaterial3D.TRANSPARENCY_DISABLED or String(old.resource_name).to_lower().contains("glass")
+		var key := "verre" if verre else str(tex.get_rid().get_id()) if tex else "uni"
+		if not _prop_mats.has(key):
+			var nm := StandardMaterial3D.new()
+			if verre:
+				nm.albedo_color = Color(0.08, 0.1, 0.13); nm.metallic = 0.6; nm.roughness = 0.08
+			else:
+				nm.albedo_texture = tex; nm.roughness = 0.62
+				nm.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+			_prop_mats[key] = nm
+		m.surface_set_material(s, _prop_mats[key])
+	return m
 
 func _rel(root: Node3D, n: Node3D) -> Transform3D:
 	var xf := Transform3D.IDENTITY
