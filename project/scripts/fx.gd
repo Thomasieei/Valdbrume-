@@ -90,3 +90,23 @@ static func impact(tree: SceneTree, arret := 0.05, ralenti := 1.0, duree_ralenti
 		await tree.create_timer(duree_ralenti, true, false, true).timeout
 	Engine.time_scale = 1.0
 	_hs_busy = false
+
+
+## choc d'impact (étoile + anneau, 0,2 s) ; « onde » : anneau qui court au sol
+static var _impact_shader: Shader
+static var _quad: QuadMesh
+static func choc(parent: Node, pos: Vector3, taille := 1.0, col := Color(1.0, 0.9, 0.7), onde := false, duree := 0.22) -> void:
+	if _impact_shader == null:
+		_impact_shader = load("res://shaders/impact.gdshader"); _quad = QuadMesh.new()
+	var m := ShaderMaterial.new(); m.shader = _impact_shader
+	m.set_shader_parameter("color", col); m.set_shader_parameter("seed", randf() * 10.0)
+	m.set_shader_parameter("flat_ring", onde)
+	var mi := MeshInstance3D.new(); mi.mesh = _quad; mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(mi)
+	mi.global_position = pos
+	mi.scale = Vector3.ONE * taille
+	if onde: mi.rotation.x = -PI / 2.0
+	var tw := mi.create_tween()
+	tw.tween_method(func(v: float): m.set_shader_parameter("progress", v), 0.0, 1.0, duree)
+	tw.tween_callback(mi.queue_free)

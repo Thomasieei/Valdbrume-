@@ -48,6 +48,7 @@ var attack_name := ""
 var attack_heavy := false
 var trail: WeaponTrail
 var knock := Vector3.ZERO
+var lunge := 2.2                # élan du coup (aimanté vers la cible)
 var combo_n := 0               # coups portés d'affilée (affiché à l'écran)
 var combo_t := 0.0
 
@@ -130,9 +131,13 @@ func _start_attack(n: String) -> void:
 	attack_heavy = n in COMBOS[style()].get("lourde", []) or n.begins_with("Sword_Aerial")
 	# visée assistée : on se tourne vers l'ennemi le plus proche devant soi
 	var t := cible_visee()
+	lunge = 2.2
 	if t:
 		var to := t.global_position - global_position
 		vis.rotation.y = atan2(to.x, to.z)
+		# l'élan rapproche juste ce qu'il faut pour rester au contact
+		var gap: float = Vector2(to.x, to.z).length() - (1.0 + float(t.rayon))
+		if gap < 3.5: lunge = clampf(gap / 0.18, 0.0, 11.0)
 	coup.emit(style())
 
 ## ennemi visé : le plus proche dans un cône devant le héros (ou la caméra)
@@ -173,9 +178,10 @@ func _strike() -> void:
 					combo_n = combo_n + 1 if combo_t < 1.6 else 1
 					combo_t = 0.0
 					var p: Vector3 = e.global_position + Vector3(0, float(e.hauteur) * 0.55, 0) - to.normalized() * float(e.rayon)
-					Fx.spawn(get_parent(), "Electric" if style() == "epee" else "Pure", "Radial_01", Transform3D(Basis(), p), 0.7 if not heavy else 1.1, 1.2)
-					Fx.flash(get_parent(), p, Fx.TEINTE.Electric if style() == "epee" else Fx.TEINTE.Pure, 3.0, 5.0, 0.2)
-					Fx.nombre(get_parent(), p + Vector3(0, 0.4, 0), val, crit)
+					if not e is Voyou:        # les voyous gèrent eux-mêmes leur impact
+						Fx.choc(get_parent(), p, 1.2 if not heavy else 1.7, Color(0.7, 0.85, 1.0) if style() == "epee" else Color(1.0, 0.9, 0.7))
+						Fx.flash(get_parent(), p, Fx.TEINTE.Electric if style() == "epee" else Fx.TEINTE.Pure, 3.0, 5.0, 0.2)
+						Fx.nombre(get_parent(), p + Vector3(0, 0.4, 0), val, crit)
 					touche = true
 			if touche:
 				shake = 0.5 if heavy else 0.3
@@ -310,7 +316,7 @@ func _physics_process(dt: float) -> void:
 			if state == S.EMOTE and state_t > state_len: state = S.LOCO
 		S.ATTACK:
 			# petite avancée au moment du coup (vitesse fixe, jamais cumulée), puis arrêt net
-			if state_t < 0.18 and is_on_floor(): target = Basis(Vector3.UP, vis.rotation.y) * Vector3(0, 0, 1) * 2.2
+			if state_t < 0.18 and is_on_floor(): target = Basis(Vector3.UP, vis.rotation.y) * Vector3(0, 0, 1) * lunge
 			else: target = hv.move_toward(Vector3.ZERO, 30.0 * dt) if is_on_floor() else hv
 			if state_t > state_len * 0.55 and queued != "":
 				var list: Array = COMBOS[style()][queued]
@@ -339,7 +345,7 @@ func _physics_process(dt: float) -> void:
 			if is_on_floor() and state_t > 0.15:
 				state = S.SOL; state_t = 0.0; vis.rotation.x = 0.0
 				vis.play("LiftAir_Fall_Impact", 0.06, 1.0, true)
-				Fx.spawn(get_parent(), "Pure", "Radial_02", Transform3D(Basis(), global_position + Vector3(0, 0.05, 0)), 1.1, 1.4)
+				Fx.choc(get_parent(), global_position + Vector3(0, 0.06, 0), 3.0, Color(0.75, 0.7, 0.62), true, 0.5)
 				shake = 0.6
 		S.SOL:
 			target = hv.move_toward(Vector3.ZERO, 14.0 * dt)

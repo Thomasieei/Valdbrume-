@@ -111,7 +111,7 @@ func touche(dmg: float, from: Vector3, kind := "") -> void:
 		_passe(E.GARDE, 0.55)
 		vis.play("Sword_Block", 0.05, 1.6, true)
 		recul = away * 1.4
-		Fx.spawn(get_parent(), "Pure", "Radial_01", Transform3D(Basis(), global_position + Vector3(0, 1.3, 0) - away * 0.4), 0.5, 1.0)
+		Fx.choc(get_parent(), global_position + Vector3(0, 1.3, 0) - away * 0.4, 1.1, Color(0.6, 0.8, 1.0))
 		if heros.has_method("recul"): heros.recul(global_position, 3.2)
 		Fx.mot(get_parent(), global_position + Vector3(0, 2.1, 0), "PARÉ", Color(0.7, 0.85, 1.0))
 		return
@@ -140,14 +140,14 @@ func touche(dmg: float, from: Vector3, kind := "") -> void:
 	elif coups_recus == 2: anim = "Hit_Head"
 	elif cote > 0.45: anim = "Hit_Shoulder_R"
 	elif cote < -0.45: anim = "Hit_Shoulder_L"
-	recul = away * (4.2 if kind == "lourd" else 2.8) / sqrt(float(d.poids))
+	recul = away * (7.5 if kind == "lourd" else 5.5) / sqrt(float(d.poids))
 	_passe(E.TOUCHE, vis.length(anim) * 0.85 + 0.08)
 	vis.play(anim, 0.04, 1.0, true)
 	_face(from, 1.0, 60.0)
 
 func _hit_fx(dmg: float, from: Vector3, fort: bool) -> void:
 	var p := global_position + Vector3(0, hauteur * 0.62, 0) + (from - global_position).normalized() * 0.3
-	Fx.spawn(get_parent(), "Pure", "Radial_01", Transform3D(Basis(), p), 0.55 if not fort else 0.85, 1.0)
+	Fx.choc(get_parent(), p, 1.2 if not fort else 1.7)
 	Fx.flash(get_parent(), p, Color(1.0, 0.92, 0.8), 2.5, 4.5, 0.15)
 	Fx.nombre(get_parent(), p + Vector3(0, 0.45, 0), dmg, fort)
 	_flash_t = 0.12
@@ -159,8 +159,9 @@ func _projete(from: Vector3, force: float, dmg: float) -> void:
 	away = away.normalized() if away.length() > 0.01 else -_avant()
 	vis.rotation.y = atan2(-away.x, -away.z)          # il regarde celui qui l'a frappé
 	var p := global_position + Vector3(0, hauteur * 0.6, 0) - away * 0.3
-	Fx.spawn(get_parent(), "Electric", "Radial_01", Transform3D(Basis(), p), 1.3 * force, 1.4)
-	Fx.spawn(get_parent(), "Pure", "Radial_02", Transform3D(Basis(), global_position), 1.1, 1.4)
+	Fx.choc(get_parent(), p, 2.6 * force, Color(1.0, 0.85, 0.55), false, 0.3)
+	Fx.choc(get_parent(), global_position + Vector3(0, 0.06, 0), 4.0, Color(1.0, 0.8, 0.5), true, 0.45)
+	Fx.spawn(get_parent(), "Electric", "Radial_01", Transform3D(Basis(), p), 0.35 * force, 1.0)
 	Fx.flash(get_parent(), p, Color(1.0, 0.9, 0.7), 6.0, 9.0, 0.3)
 	Fx.nombre(get_parent(), p + Vector3(0, 0.6, 0), dmg, true)
 	Fx.mot(get_parent(), p + Vector3(0, 1.1, 0), "PROJECTION !" if vivant else "K.-O. !", Color(1.0, 0.55, 0.3), true)
@@ -223,9 +224,9 @@ func _physics_process(dt: float) -> void:
 				var ang := _avant().dot(to.normalized()) if dist > 0.01 else 1.0
 				if dist < reach + 0.35 and ang > 0.25 and heros_dispo:
 					var fx_p := hp + Vector3(0, 1.25, 0) - to.normalized() * 0.3
-					Fx.spawn(get_parent(), "Pure", "Radial_01", Transform3D(Basis(), fx_p), 0.6, 1.0)
+					Fx.choc(get_parent(), fx_p, 1.3, Color(1.0, 0.45, 0.35))
 					if int(a[3]) == 2 and heros.has_method("projete"): heros.projete(float(a[2]), global_position)
-					elif heros.has_method("blesse"): heros.blesse(float(a[2]), global_position, 6.5 if int(a[3]) == 1 else 3.6)
+					elif heros.has_method("blesse"): heros.blesse(float(a[2]), global_position, 7.0 if int(a[3]) == 1 else 2.4)
 					recul = -_avant() * 0.8         # il recule aussi un peu sous le choc
 			if t > duree:
 				chaine_i += 1
@@ -245,7 +246,7 @@ func _physics_process(dt: float) -> void:
 				var c := get_slide_collision(i)
 				var n := c.get_normal()
 				if absf(n.y) < 0.5 and Vector2(velocity.x, velocity.z).length() > 3.0:
-					Fx.spawn(get_parent(), "Pure", "Radial_01", Transform3D(Basis(), c.get_position()), 1.0, 1.2)
+					Fx.choc(get_parent(), c.get_position(), 2.2, Color(1.0, 0.9, 0.7), false, 0.28)
 					Fx.flash(get_parent(), c.get_position(), Color(1, 0.9, 0.8), 3.0, 6.0, 0.2)
 					if heros.get("shake") != null: heros.shake = 0.7
 					var hv := Vector3(velocity.x, 0, velocity.z)
@@ -257,7 +258,7 @@ func _physics_process(dt: float) -> void:
 				_passe(E.SOL)
 				vis.rotation.x = 0.0
 				vis.play("LiftAir_Fall_Impact", 0.06, 1.0, true)
-				Fx.spawn(get_parent(), "Pure", "Radial_02", Transform3D(Basis(), global_position + Vector3(0, 0.05, 0)), 1.2, 1.4)
+				Fx.choc(get_parent(), global_position + Vector3(0, 0.06, 0), 3.2, Color(0.75, 0.7, 0.62), true, 0.5)
 				if heros.get("shake") != null: heros.shake = max(heros.shake, 0.45)
 			velocity.y -= 20.0 * dt
 			move_and_slide()

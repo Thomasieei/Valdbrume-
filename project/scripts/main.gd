@@ -623,6 +623,13 @@ func _test_mission() -> void:
 			if is_instance_valid(v) and v.etat == Voyou.E.ARMEMENT and v.global_position.distance_to(player.global_position) < 2.5 and esquive_t <= 0.0 and randf() < 0.5:
 				esquive_t = 2.0
 				if player.state in [0, 7]: player.dodge()
+		# pour filmer le héros projeté : il se laisse surprendre par l'enchaînement du Cogneur
+		var cogne := false
+		for v in quests.bande:
+			if is_instance_valid(v) and v.type == "cogneur" and v.etat in [Voyou.E.ARMEMENT, Voyou.E.ATTAQUE]: cogne = true
+		if cogne and not filme.heros and filme.vol:
+			player.move_input = Vector2.ZERO
+			continue
 		_face_to(tgt.global_position)
 		if bd > 1.5 + float(tgt.rayon):
 			player.move_input = Vector2(0, -1); player.sprint_held = bd > 5.0
