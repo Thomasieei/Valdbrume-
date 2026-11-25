@@ -158,7 +158,8 @@ func touche(dmg: float, from: Vector3, kind := "") -> void:
 	elif cote > 0.45: anim = "Hit_Shoulder_R"
 	elif cote < -0.45: anim = "Hit_Shoulder_L"
 	recul = away * (6.5 if kind == "lourd" else 4.6) / sqrt(float(d.poids))
-	_passe(E.TOUCHE, vis.length(anim) * 0.85 + 0.08)
+	# étourdi assez longtemps pour que l'enchaînement du héros puisse continuer
+	_passe(E.TOUCHE, maxf(vis.length(anim) * 0.9, 0.62 + 0.1 * coups_recus))
 	vis.play(anim, 0.04, 1.0, true)
 	_face(from, 1.0, 60.0)
 
@@ -208,6 +209,7 @@ func _physics_process(dt: float) -> void:
 			_face(hp, dt)
 			# garde ses distances en tournant autour du héros
 			var radial := to.normalized() * clampf(dist - dist_voulue, -1.0, 1.0) * float(d.vitesse)
+			if horloge - dernier_coup < 1.4: radial *= 0.25          # encore sonné : il ne recule presque pas
 			var tang := to.normalized().cross(Vector3.UP) * orbite * 1.3
 			v = radial + tang
 			if t > 2.5 and randf() < dt * 0.4: orbite = -orbite
