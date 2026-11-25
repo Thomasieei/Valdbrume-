@@ -63,6 +63,7 @@ func _ready() -> void:
 	elif "--vie" in args: _simulate_life.call_deferred()
 	elif "--diag-anim" in args: _diag_anim.call_deferred()
 	elif "--combat" in args: _test_combat.call_deferred()
+	elif "--mission" in args: _test_mission.call_deferred()
 
 ## K.-O. : on se réveille à la pharmacie, soigné par Inès
 func _ko() -> void:
@@ -514,4 +515,136 @@ func _test_combat() -> void:
 	var f := FileAccess.open(out.path_join("combat.json"), FileAccess.WRITE)
 	f.store_string(JSON.stringify(rep, "  ")); f.close()
 	print("COMBAT ", JSON.stringify(rep))
+	get_tree().quit()
+
+
+# ------------------------------------------------------------------ mission 1, jouée
+## Le héros affronte réellement la bande du Balafré (pilotage automatique) ;
+## les projections sont filmées image par image et assemblées en planches.
+func _grab() -> Image:
+	var im := get_viewport().get_texture().get_image()
+	im.resize(640, 360, Image.INTERPOLATE_BILINEAR)
+	return im
+
+func _planche(out: String, nom: String, imgs: Array) -> void:
+	var sheet := Image.create(640 * 3, 360 * 2, false, Image.FORMAT_RGB8)
+	for i in min(6, imgs.size()):
+		var im: Image = imgs[i]
+		im.convert(Image.FORMAT_RGB8)
+		sheet.blit_rect(im, Rect2i(0, 0, 640, 360), Vector2i((i % 3) * 640, (i / 3) * 360))
+	sheet.save_png(out.path_join(nom + ".png"))
+	print("capture ", nom)
+
+## filme une action vue de côté : 6 images à intervalles donnés (en images de jeu)
+func _filme(out: String, nom: String, sujet: Node3D, dir: Vector3, pas: Array) -> void:
+	var cam := Camera3D.new(); add_child(cam); cam.fov = 58.0
+	var side := dir.cross(Vector3.UP).normalized()
+	var c0 := sujet.global_position + dir * 2.5
+	cam.global_position = c0 + side * 8.5 + Vector3(0, 1.9, 0)
+	cam.look_at(c0 + Vector3(0, 1.0, 0)); cam.current = true
+	ui.visible = false
+	var imgs := []
+	var f := 0
+	for p in pas:
+		while f < int(p): await get_tree().process_frame; f += 1
+		imgs.append(_grab())
+	await _planche(out, nom, imgs)
+	player.cam.current = true; ui.visible = true
+	cam.queue_free()
+
+func _test_mission() -> void:
+	var out := ProjectSettings.globalize_path("res://").path_join("../captures")
+	DirAccess.make_dir_recursive_absolute(out)
+	var report := []
+	var rep := {"projections": 0, "parades": 0, "esquives": 0, "coups_recus": 0, "heros_projete": 0, "coups_portes": 0}
+	for k in quests.etat.keys(): quests.etat.erase(k)
+	life.minute = 14 * 60; life.warp(); day.force_hour = 14.0; day.apply(14.0)
+	quests.donne("balafre")
+	var A: Vector3 = quests.ARENE
+	player.global_position = A + Vector3(30, 0.3, 0)
+	_face_to(A)
+	await _wait(10)
+	await _go_near(A, 16.0)
+	player.move_input = Vector2.ZERO
+	_face_to(A)
+	await _wait(40)
+	# plan d'ensemble de la provocation
+	var cam := Camera3D.new(); add_child(cam); cam.fov = 55.0
+	cam.global_position = player.global_position + Vector3(-1.5, 2.0, 3.5); cam.look_at(A + Vector3(0, 1.2, 0)); cam.current = true
+	await _shot(out, "80_mission_provocation", report)
+	player.cam.current = true
+	var g := 0
+	while int(quests.etat.balafre.etape) == 0 and g < 600: await _wait(1); g += 1
+	_set_style("poings")
+	var filme := {"vol": false, "heros": false, "parade": false, "recul": false, "mur": false}
+	var prev := {}
+	var game_t := 0.0
+	var prev_pstate: int = player.state
+	var esquive_t := 0.0
+	while int(quests.etat.balafre.etape) == 1 and game_t < 150.0:
+		await get_tree().physics_frame
+		game_t += 1.0 / 60.0; esquive_t -= 1.0 / 60.0
+		player.pv = max(player.pv, 45.0)          # on vérifie le combat, pas la survie
+		# compteurs : transitions d'état des voyous et du héros
+		for v in quests.bande:
+			if not is_instance_valid(v): continue
+			var pe: int = prev.get(v, -1)
+			if v.etat != pe:
+				if v.etat == Voyou.E.VOL: rep.projections += 1
+				if v.etat == Voyou.E.GARDE: rep.parades += 1
+				if v.etat == Voyou.E.ESQUIVE: rep.esquives += 1
+				prev[v] = v.etat
+				if v.etat == Voyou.E.VOL and not filme.vol:
+					filme.vol = true
+					var dv: Vector3 = Vector3(v.velocity.x, 0, v.velocity.z).normalized()
+					await _filme(out, "82_projection_planche", v, dv, [0, 5, 10, 16, 24, 40])
+				elif v.etat == Voyou.E.TOUCHE and not filme.recul:
+					filme.recul = true
+					await _filme(out, "81_coup_recul_planche", v, (v.global_position - player.global_position).normalized(), [0, 3, 6, 10, 15, 22])
+				elif v.etat == Voyou.E.GARDE and not filme.parade:
+					filme.parade = true
+					await _filme(out, "84_parade_planche", v, (v.global_position - player.global_position).normalized(), [0, 4, 8, 12, 18, 26])
+		if player.state != prev_pstate:
+			if player.state == 8: rep.coups_recus += 1
+			if player.state == 10:
+				rep.heros_projete += 1
+				if not filme.heros:
+					filme.heros = true
+					await _filme(out, "83_heros_projete_planche", player, Vector3(player.velocity.x, 0, player.velocity.z).normalized(), [0, 6, 12, 20, 34, 60])
+			prev_pstate = player.state
+		# pilotage : cible la plus proche, enchaînements, esquive quand un coup s'annonce
+		var tgt = null; var bd := 1e9
+		for v in quests.bande:
+			if is_instance_valid(v) and v.vivant and v.etat != Voyou.E.KO:
+				var dd: float = v.global_position.distance_to(player.global_position)
+				if dd < bd: bd = dd; tgt = v
+		if tgt == null: continue
+		for v in quests.bande:
+			if is_instance_valid(v) and v.etat == Voyou.E.ARMEMENT and v.global_position.distance_to(player.global_position) < 2.5 and esquive_t <= 0.0 and randf() < 0.5:
+				esquive_t = 2.0
+				if player.state in [0, 7]: player.dodge()
+		_face_to(tgt.global_position)
+		if bd > 1.5 + float(tgt.rayon):
+			player.move_input = Vector2(0, -1); player.sprint_held = bd > 5.0
+		else:
+			player.move_input = Vector2.ZERO
+			if player.state in [0, 7]:
+				player.attack(randf() < 0.15); rep.coups_portes += 1
+			elif player.state == 4 and player.state_t > player.state_len * 0.5:
+				player.attack(randf() < 0.15); rep.coups_portes += 1
+	player.move_input = Vector2.ZERO
+	rep["duree_combat_s"] = game_t
+	rep["mission"] = quests.etat.balafre.duplicate()
+	await _wait(30)
+	cam.global_position = player.global_position + Vector3(3.0, 2.2, 4.0); cam.look_at(player.global_position + Vector3(0, 0.8, -3.0)); cam.current = true
+	await _shot(out, "85_bande_ko", report)
+	player.cam.current = true
+	var nadia: Npc = life.npcs.nadia
+	nadia.hidden_inside = false; nadia.visible = true
+	player.global_position = nadia.global_position + Vector3(1.5, 0.3, 0.5)
+	life.talk(nadia)
+	await _wait(10)
+	await _shot(out, "86_mission_terminee", report)
+	rep["mission_fin"] = quests.etat.balafre.duplicate()
+	print("MISSION ", JSON.stringify(rep))
 	get_tree().quit()

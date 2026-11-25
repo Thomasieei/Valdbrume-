@@ -217,6 +217,7 @@ func _new_day() -> void:
 	_save()
 
 func _start_agression() -> void:
+	if quetes and quetes.etat.has("balafre") and quetes.etat.balafre.fini: return   # la bande est dispersée
 	if agression.get("jour", -1) == day: return
 	agression = {"jour": day, "etat": "attente", "t": 0.0}
 	if thugs.is_empty():

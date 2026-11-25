@@ -2,7 +2,7 @@ name: Diagnostic des effets
 on:
   push:
     branches: [main]
-    paths: ['project/diag/**', '.github/workflows/diag.yml']
+    paths: ['project/diag/**', '.github/workflows/diag.yml', 'project/scripts/thug.gd']
   workflow_dispatch: {}
 permissions:
   contents: write
@@ -11,7 +11,7 @@ env:
 jobs:
   diag:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -25,9 +25,12 @@ jobs:
           key: godot-${{ env.GODOT_VERSION }}-v2
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb mesa-vulkan-drivers libvulkan1 vulkan-tools > /dev/null
       - run: ~/godot/godot --headless --path project --import 2>&1 | grep -iE "vefects|error" | head -40 || true
+      - name: Vérification des scripts
+        run: |
+          for f in project/scripts/*.gd; do timeout 60 ~/godot/godot --headless --path project --check-only --script "res://scripts/$(basename $f)" 2>&1 | grep -E "SCRIPT ERROR|Parse Error|error\(" | sed "s|^|$(basename $f): |" || true; done
       - name: Effets
         run: |
-          timeout 600 xvfb-run -a -s "-screen 0 1280x720x24" ~/godot/godot --path project --rendering-method mobile --rendering-driver vulkan --resolution 1280x720 -s res://diag/fxdiag.gd 2>&1 | grep -vE "^\s*$" | tail -60
+          timeout 1500 xvfb-run -a -s "-screen 0 1280x720x24" ~/godot/godot --path project --rendering-method mobile --rendering-driver vulkan --resolution 1280x720 --fixed-fps 60 -- --mission 2>&1 | grep -E "MISSION|SCRIPT|ERROR|capture" | head -60
       - name: Publication
         run: |
           cd captures && git init -q && git checkout -q -b diag && git add . && git -c user.name=ci -c user.email=ci@x commit -qm diag

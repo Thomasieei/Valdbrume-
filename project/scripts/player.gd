@@ -20,7 +20,7 @@ var pivot := Node3D.new()
 var arm := SpringArm3D.new()
 var cam := Camera3D.new()
 
-enum S { LOCO, AIR, ROLL, SLIDE, ATTACK, DODGE, EMOTE, LAND, HIT, DEAD }
+enum S { LOCO, AIR, ROLL, SLIDE, ATTACK, DODGE, EMOTE, LAND, HIT, DEAD, LAUNCH, SOL, GETUP }
 var state := S.LOCO
 var state_t := 0.0
 var state_len := 0.0
@@ -48,6 +48,8 @@ var attack_name := ""
 var attack_heavy := false
 var trail: WeaponTrail
 var knock := Vector3.ZERO
+var combo_n := 0               # coups portés d'affilée (affiché à l'écran)
+var combo_t := 0.0
 
 ## instants de frappe (fraction de l'animation) ; par défaut un seul coup à 42 %
 const HIT_TIMES := {"Spell_Double_Shoot_Loop": [0.22, 0.58], "Bow_RapidShoot_Loop": [0.18, 0.5, 0.82],
@@ -85,6 +87,7 @@ func _ready() -> void:
 	cam.fov = 68.0; cam.near = 0.08; cam.far = 900.0; cam.current = true
 	vis.play("Idle_Loop", 0.0)
 	add_to_group("combattants")
+	add_to_group("heros")
 	trail = WeaponTrail.new()
 	add_child(trail)
 
@@ -108,7 +111,7 @@ func next_style() -> void:
 	action_text.emit({"poings": "Mains nues", "epee": "Épée", "magie": "Magie", "arc": "Arc"}[style()])
 
 func attack(heavy := false) -> void:
-	if not vivant or state == S.HIT: return
+	if not vivant or state in [S.HIT, S.LAUNCH, S.SOL, S.GETUP]: return
 	var kind := "lourde" if heavy else "legere"
 	if state == S.AIR and style() == "epee":
 		_start_attack(COMBOS.epee.air[0]); return
@@ -166,15 +169,17 @@ func _strike() -> void:
 				if dd < reach + float(e.rayon) and (dd < 0.6 or fwd.dot(to / dd) > 0.35):
 					var crit := randf() < 0.12
 					var val := dmg * (1.6 if crit else 1.0)
-					e.touche(val, global_position)
+					e.touche(val, global_position, "lourd" if heavy else "")
+					combo_n = combo_n + 1 if combo_t < 1.6 else 1
+					combo_t = 0.0
 					var p: Vector3 = e.global_position + Vector3(0, float(e.hauteur) * 0.55, 0) - to.normalized() * float(e.rayon)
 					Fx.spawn(get_parent(), "Electric" if style() == "epee" else "Pure", "Radial_01", Transform3D(Basis(), p), 0.7 if not heavy else 1.1, 1.2)
 					Fx.flash(get_parent(), p, Fx.TEINTE.Electric if style() == "epee" else Fx.TEINTE.Pure, 3.0, 5.0, 0.2)
 					Fx.nombre(get_parent(), p + Vector3(0, 0.4, 0), val, crit)
 					touche = true
 			if touche:
-				shake = 0.5 if heavy else 0.25
-				if heavy: _hitstop(0.07)
+				shake = 0.5 if heavy else 0.3
+				Fx.impact(get_tree(), 0.075 if heavy else 0.045)
 		"magie":
 			var from := _bone_pos("hand_r") + fwd * 0.25
 			var t := cible_visee()
@@ -199,11 +204,13 @@ func _hitstop(d: float) -> void:
 	Engine.time_scale = 1.0
 
 ## coup reçu (les roulades et glissades esquivent)
-func blesse(dmg: float, from: Vector3) -> void:
-	if not vivant or state in [S.ROLL, S.SLIDE, S.DEAD]: return
-	pv -= dmg; hurt_t = 0.0; hurt_flash = 1.0; shake = 0.45
+func blesse(dmg: float, from: Vector3, force := 4.0) -> void:
+	if not vivant or state in [S.ROLL, S.SLIDE, S.DEAD, S.LAUNCH, S.SOL, S.GETUP]: return
+	pv -= dmg; hurt_t = 0.0; hurt_flash = 1.0; shake = 0.45 + force * 0.04
+	combo_n = 0
 	var away := global_position - from; away.y = 0
-	knock = away.normalized() * 4.0
+	knock = away.normalized() * force
+	vis.rotation.y = atan2(-away.x, -away.z)        # il encaisse face à l'adversaire
 	Fx.nombre(get_parent(), global_position + Vector3(0, 2.0, 0), dmg, false, Color(1.0, 0.35, 0.3))
 	if pv <= 0.0:
 		pv = 0.0; vivant = false; state = S.DEAD; state_t = 0.0
@@ -212,6 +219,30 @@ func blesse(dmg: float, from: Vector3) -> void:
 		return
 	state = S.HIT; state_t = 0.0; state_len = 0.42
 	vis.play(["Hit_Chest", "Hit_Head", "Hit_Shoulder_L", "Hit_Shoulder_R"][randi() % 4], 0.06, 1.2, true)
+
+## projeté par un coup puissant : envol, chute sur le dos, relevé en kip-up
+func projete(dmg: float, from: Vector3) -> void:
+	if not vivant or state in [S.ROLL, S.SLIDE, S.DEAD, S.LAUNCH, S.SOL, S.GETUP]: return
+	pv -= dmg; hurt_t = 0.0; hurt_flash = 1.0; shake = 1.0; combo_n = 0
+	var away := global_position - from; away.y = 0
+	away = away.normalized()
+	Fx.nombre(get_parent(), global_position + Vector3(0, 2.0, 0), dmg, true, Color(1.0, 0.35, 0.3))
+	Fx.impact(get_tree(), 0.09, 0.4, 0.25)
+	vis.rotation.y = atan2(-away.x, -away.z)
+	if pv <= 0.0:
+		pv = 0.0; vivant = false
+	velocity = away * 8.5 + Vector3.UP * 5.8
+	state = S.LAUNCH; state_t = 0.0
+	vis.play("Hit_Knockback", 0.03, 1.1, true)
+
+## repoussé quand l'adversaire pare le coup
+func recul(from: Vector3, force := 3.0) -> void:
+	if state in [S.LAUNCH, S.SOL, S.GETUP, S.DEAD]: return
+	var away := global_position - from; away.y = 0
+	knock = away.normalized() * force
+	state = S.HIT; state_t = 0.0; state_len = 0.38
+	shake = 0.35; combo_n = 0
+	vis.play("Hit_Shoulder_R", 0.05, 1.3, true)
 
 func revive(at: Vector3) -> void:
 	global_position = at; velocity = Vector3.ZERO
@@ -255,6 +286,8 @@ func _physics_process(dt: float) -> void:
 	hurt_flash = max(hurt_flash - dt * 2.5, 0.0)
 	if hurt_t > 6.0 and vivant: pv = min(pv_max, pv + 8.0 * dt)
 	shake = max(shake - dt * 2.2, 0.0)
+	combo_t += dt
+	if combo_t > 1.6: combo_n = 0
 	cam.h_offset = randf_range(-1.0, 1.0) * shake * 0.09
 	cam.v_offset = randf_range(-1.0, 1.0) * shake * 0.07
 	trail.active = state == S.ATTACK and style() == "epee" and state_t < state_len * 0.8
@@ -299,11 +332,32 @@ func _physics_process(dt: float) -> void:
 		S.DEAD:
 			target = Vector3.ZERO
 			if state_t > 3.5: ko.emit()
+		S.LAUNCH:
+			target = hv
+			if vis.current == "Hit_Knockback" and state_t > 0.3: vis.play("LiftAir_Fall_Air_Loop", 0.15)
+			vis.rotation.x = lerpf(vis.rotation.x, clampf(-velocity.y * 0.06, -0.5, 0.5), 1.0 - exp(-8.0 * dt))
+			if is_on_floor() and state_t > 0.15:
+				state = S.SOL; state_t = 0.0; vis.rotation.x = 0.0
+				vis.play("LiftAir_Fall_Impact", 0.06, 1.0, true)
+				Fx.spawn(get_parent(), "Pure", "Radial_02", Transform3D(Basis(), global_position + Vector3(0, 0.05, 0)), 1.1, 1.4)
+				shake = 0.6
+		S.SOL:
+			target = hv.move_toward(Vector3.ZERO, 14.0 * dt)
+			if state_t > 0.9:
+				if not vivant:
+					state = S.DEAD; state_t = 0.0
+					action_text.emit("Vous perdez connaissance…")
+				else:
+					state = S.GETUP; state_t = 0.0; state_len = vis.length("KipUp") * 0.9
+					vis.play("KipUp", 0.1, 1.0, true)
+		S.GETUP:
+			target = Vector3.ZERO
+			if state_t > state_len: state = S.LOCO
 		S.AIR:
 			target = hv.lerp(mv.normalized() * max(hv.length(), jog_speed) if amount > 0.05 else hv, 2.5 * dt)
 	var accel := 24.0 if is_on_floor() else 8.0
 	knock = knock.move_toward(Vector3.ZERO, 12.0 * dt)
-	if state in [S.ROLL, S.SLIDE, S.ATTACK, S.HIT, S.DEAD]: hv = target
+	if state in [S.ROLL, S.SLIDE, S.ATTACK, S.HIT, S.DEAD, S.LAUNCH, S.SOL, S.GETUP]: hv = target
 	else: hv = hv.move_toward(target, accel * dt)
 	velocity.x = hv.x; velocity.z = hv.z
 	# saut / double saut
@@ -328,7 +382,7 @@ func _physics_process(dt: float) -> void:
 	# orientation du corps
 	var face := hv if hv.length() > 0.4 else Vector3.ZERO
 	if state == S.ATTACK and mv.length() > 0.1 and state_t < 0.1: face = mv
-	if face.length() > 0.0 and state != S.ROLL:
+	if face.length() > 0.0 and state not in [S.ROLL, S.HIT, S.LAUNCH, S.SOL, S.GETUP, S.DEAD]:
 		vis.rotation.y = lerp_angle(vis.rotation.y, atan2(face.x, face.z), 1.0 - exp(-14.0 * dt))
 	elif state == S.ROLL:
 		vis.rotation.y = atan2(roll_dir.x, roll_dir.z)

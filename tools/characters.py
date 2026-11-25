@@ -106,6 +106,10 @@ FIGURANTS = [
       sous=dict(type='tshirt', couleur=(0.85, 0.85, 0.85), tissu='coton'),
       bas=dict(type='pantalon', couleur=(0.25, 0.25, 0.27), tissu='toile'), pieds=dict(type='baskets', couleur=(0.9, 0.9, 0.9)),
       histoire="Suit le Balafré partout."),
+ dict(id='voyou3', nom='Le Cogneur', corps='M', role='voyou', cheveux='Hair_Buzzed', c_cheveux=(0.02, 0.02, 0.02), barbe=True, peau=0.7, yeux=(0.15, 0.1, 0.08), taille=1.12,
+      haut=dict(type='tshirt', couleur=(0.08, 0.09, 0.10), tissu='coton', manches='courtes'),
+      bas=dict(type='pantalon', couleur=(0.22, 0.24, 0.18), tissu='toile'), pieds=dict(type='bottes', couleur=(0.12, 0.08, 0.05)),
+      histoire="Ancien boxeur. Le muscle de la bande du Balafré."),
 ]
 
 # ----------------------------------------------------------------- géométrie

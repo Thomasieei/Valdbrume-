@@ -184,6 +184,13 @@ func _draw() -> void:
 		var c := Color(0.8, 0.05, 0.05, 0.28 * player.hurt_flash)
 		draw_rect(Rect2(0, 0, w.x, 26), c); draw_rect(Rect2(0, w.y - 26, w.x, 26), c)
 		draw_rect(Rect2(0, 0, 26, w.y), c); draw_rect(Rect2(w.x - 26, 0, 26, w.y), c)
+	# compteur de coups enchaînés
+	if player.combo_n >= 2:
+		var k := clampf(1.0 - player.combo_t / 1.6, 0.0, 1.0)
+		var pop := 1.0 + 0.35 * clampf(1.0 - player.combo_t * 6.0, 0.0, 1.0)
+		var fs := int(44 * pop)
+		draw_string(font, Vector2(w.x * 0.66 + 2, w.y * 0.40 + 3), "%d COUPS" % player.combo_n, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.6 * k))
+		draw_string(font, Vector2(w.x * 0.66, w.y * 0.40), "%d COUPS" % player.combo_n, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1.0, 0.82, 0.35, k))
 	# points de vie
 	var hp: float = player.pv / player.pv_max
 	draw_rect(Rect2(22, 22, 300, 18), Color(0, 0, 0, 0.55))

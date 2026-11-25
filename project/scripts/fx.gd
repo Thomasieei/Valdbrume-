@@ -57,15 +57,19 @@ static func trail_material(col: Color) -> ShaderMaterial:
 
 ## chiffre de dégâts qui jaillit et s'efface (critique : plus gros, doré)
 static func nombre(parent: Node, pos: Vector3, val: float, crit := false, col := Color(1, 1, 1)) -> void:
+	mot(parent, pos, str(int(round(val))) + ("!" if crit else ""), Color(1.0, 0.82, 0.3) if crit else col, crit)
+
+static func mot(parent: Node, pos: Vector3, texte: String, col := Color(1, 1, 1), gros := false) -> void:
 	var l := Label3D.new()
-	l.text = str(int(round(val))) + ("!" if crit else "")
+	var crit := gros
+	l.text = texte
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	l.no_depth_test = true
 	l.fixed_size = true
 	l.pixel_size = 0.0011 if crit else 0.0008
 	l.font_size = 64
 	l.outline_size = 14
-	l.modulate = Color(1.0, 0.82, 0.3) if crit else col
+	l.modulate = col
 	l.render_priority = 10
 	parent.add_child(l)
 	l.global_position = pos + Vector3(randf_range(-0.25, 0.25), 0, randf_range(-0.25, 0.25))
@@ -73,3 +77,16 @@ static func nombre(parent: Node, pos: Vector3, val: float, crit := false, col :=
 	tw.tween_property(l, "global_position", l.global_position + Vector3(0, 0.9, 0), 0.7).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 	tw.tween_property(l, "modulate:a", 0.0, 0.35).set_delay(0.4)
 	tw.chain().tween_callback(l.queue_free)
+
+## arrêt sur image puis ralenti : donne du poids aux coups (temps réel, pas le temps du jeu)
+static var _hs_busy := false
+static func impact(tree: SceneTree, arret := 0.05, ralenti := 1.0, duree_ralenti := 0.0) -> void:
+	if _hs_busy: return
+	_hs_busy = true
+	Engine.time_scale = 0.04
+	await tree.create_timer(arret, true, false, true).timeout
+	if duree_ralenti > 0.0:
+		Engine.time_scale = ralenti
+		await tree.create_timer(duree_ralenti, true, false, true).timeout
+	Engine.time_scale = 1.0
+	_hs_busy = false

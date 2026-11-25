@@ -12,8 +12,15 @@ var portail: Portail
 var monstres: Array = []
 var _t := 0.0
 const GATE_POS := Vector3(-352.0, 0.0, 0.5)     # sur le parvis de la Gare de l'Ouest
+const ARENE := Vector3(-300.0, 0.0, 1.0)        # Grand Boulevard, entre l'avenue de l'Ouest et la gare
+var bande: Array = []
+var _intro_t := -1.0
 
 const QUETES := {
+	"balafre": {"titre": "Mission 1 : La bande du Balafré", "etapes": [
+		["La bande du Balafré rackette le quartier. Ils traînent sur le Grand Boulevard, près de la gare.", "pos", ARENE],
+		["Mets la bande du Balafré K.-O. : %d / 3.", "bande", null],
+		["Va dire à Nadia que le quartier est tranquille.", "pnj", "nadia"]]},
 	"lanternes": {"titre": "Le Passage des Lanternes", "etapes": [
 		["Théo rentre par le Passage des Lanternes à 21 h. Rejoins-le avant.", "lieu", "passage_lanternes"],
 		["Protège Théo des voyous.", "lieu", "passage_lanternes"],
@@ -38,6 +45,9 @@ func setup(p_life: Node, p_player: Node3D) -> void:
 	player.coup.connect(_on_coup)
 	for id in etat:
 		if not etat[id].fini and not etat[id].get("echec", false): suivie = id
+	# première mission : donnée dès l'arrivée en ville
+	if not etat.has("balafre"):
+		donne.call_deferred("balafre", "Nadia, la fleuriste, te parle d'une bande qui rackette les commerçants. Trois types, menés par le Balafré.")
 	# les destins déjà accomplis restent visibles
 	if "chasseur novice" in life.mem.hugo.souvenirs: life.npcs.hugo.devient_chasseur()
 
@@ -82,6 +92,13 @@ func objectif() -> Variant:
 		"pnj":
 			var n: Npc = life.npcs[st[2]]
 			return null if n.hidden_inside else n.global_position
+		"bande":
+			var bb = null; var bbd := 1e9
+			for v in bande:
+				if is_instance_valid(v) and v.vivant:
+					var dv: float = v.global_position.distance_to(player.global_position)
+					if dv < bbd: bbd = dv; bb = v.global_position
+			return bb
 		"monstres":
 			var best = null; var bd := 1e9
 			for m in monstres:
@@ -113,6 +130,9 @@ func _on_parle(id: String) -> void:
 			elif etat.gare.etape == 4: avance("gare", "Niveau supérieur ! Points de vie max +20.")
 		"theo":
 			if etat.has("lanternes") and etat.lanternes.etape == 2: avance("lanternes", "Théo te doit la vie. Son café sera toujours offert.")
+		"nadia" when etat.has("balafre") and int(etat.balafre.etape) == 2:
+			player.pv_max += 10.0; player.pv = player.pv_max
+			avance("balafre", "Le quartier respire. Points de vie max +10.")
 		"nadia", "chloe":
 			if not etat.has("lanternes") and life.hour() >= 15.0: donne("lanternes")
 
@@ -140,7 +160,8 @@ func _process(dt: float) -> void:
 	var h: float = life.hour()
 	var pp := player.global_position
 	# la rumeur du soir : Chloé prévient le joueur
-	if not etat.has("lanternes") and h >= 19.5 and h < 20.9:
+	var bande_finie: bool = etat.has("balafre") and etat.balafre.fini
+	if not etat.has("lanternes") and not bande_finie and h >= 19.5 and h < 20.9:
 		donne("lanternes", "Message de Chloé : « La bande du Balafré traîne dans le Passage des Lanternes. Théo rentre par là à 21 h… »")
 	for id in etat.keys():
 		var e: Dictionary = etat[id]
@@ -153,6 +174,7 @@ func _process(dt: float) -> void:
 					if hu.place == "entrainement" and hu.arrived() and hu.global_position.distance_to(pp) < 7.0:
 						avance("hugo", "Frappe aux côtés de Hugo pour l'entraîner (attaque près de lui).")
 			"gare": _gare(e, h, pp, step)
+			"balafre": _balafre(e, pp, step)
 
 func _lanternes(e: Dictionary) -> void:
 	var s: Array = life.mem.theo.souvenirs
@@ -194,6 +216,46 @@ func _gare(e: Dictionary, h: float, pp: Vector3, _dt: float) -> void:
 					if n.combat: n.entre_en_combat(false)
 				player.pv_max += 20.0; player.pv = player.pv_max
 				avance("gare", "Le portail est vaincu. Marc t'attend.")
+
+## ---------------------------------------------------------------- mission 1
+func _balafre(e: Dictionary, pp: Vector3, dt: float) -> void:
+	match int(e.etape):
+		0:
+			if bande.is_empty() and pp.distance_to(ARENE) < 24.0: _spawn_bande()
+			if _intro_t >= 0.0:
+				_intro_t += dt
+				if _intro_t > 2.6:
+					_intro_t = -1.0
+					for v in bande: v.commence()
+					avance("balafre", "Mets-les K.-O. ! Au 3e coup d'affilée, tu les projettes.")
+		1:
+			var ko := 0
+			for v in bande:
+				if not is_instance_valid(v) or not v.vivant: ko += 1
+			e.compte = ko
+			if not player.vivant:
+				# défaite : la bande s'en va, on pourra revenir
+				for v in bande:
+					if is_instance_valid(v): v.queue_free()
+				bande.clear(); e.etape = 0; e.compte = 0
+				annonce.emit(QUETES.balafre.titre, "La bande t'a eu cette fois. Reviens quand tu seras prêt.")
+			elif ko >= 3:
+				avance("balafre", "La bande du Balafré est au tapis !")
+
+func _spawn_bande() -> void:
+	var dir := (player.global_position - ARENE); dir.y = 0; dir = dir.normalized()
+	var side := dir.cross(Vector3.UP)
+	var pos := [ARENE - side * 2.2, ARENE + dir * 0.6, ARENE + side * 2.2]
+	var types := ["rouquin", "balafre", "cogneur"]
+	for i in 3:
+		var v := Voyou.new()
+		get_parent().add_child(v)
+		v.setup(types[i], player)
+		v.global_position = pos[i] + Vector3(0, 0.2, 0)
+		v.vis.rotation.y = atan2(dir.x, dir.z)
+		bande.append(v)
+	_intro_t = 0.0
+	annonce.emit("Le Balafré", "« Tiens, tiens… le petit chasseur qui fourre son nez partout. Les gars, on lui apprend la politesse. »")
 
 func _ouvre_portail() -> void:
 	if portail: return
