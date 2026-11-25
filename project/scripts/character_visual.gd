@@ -190,13 +190,28 @@ func _tenue(spec: Dictionary) -> Node3D:
 	if float(spec.prise) >= 0.0:
 		var pommeau := lo if s > 0.0 else hi
 		hp[ax] = pommeau + s * float(spec.prise)
+	else:
+		# arc : la poignée est au milieu de la branche, pas au centre de la boîte
+		var somme := Vector3.ZERO; var nb := 0
+		var mid: float = box.get_center()[ax]
+		var tol: float = box.size[ax] * 0.04
+		for m in w.find_children("*", "MeshInstance3D", true, false):
+			var xf := _rel_xf(w, m)
+			var mesh: Mesh = (m as MeshInstance3D).mesh
+			for si in mesh.get_surface_count():
+				var verts: PackedVector3Array = mesh.surface_get_arrays(si)[Mesh.ARRAY_VERTEX]
+				for v in verts:
+					var p: Vector3 = xf * v
+					if absf(p[ax] - mid) < tol: somme += p; nb += 1
+		if nb > 0: hp = somme / nb
 	var r := repere_poing(spec.os)
 	var g: Vector3 = r.g
 	var f: Vector3 = (r.f as Vector3).rotated(g, deg_to_rad(float(spec.tourne)))
 	var bw := Basis(a, e, a.cross(e))
 	var bh := Basis(g, f, g.cross(f))
 	var rot := bh * bw.inverse()
-	w.transform = Transform3D(rot, (r.c as Vector3) - rot * hp)
+	var sc := w.scale            # l'échelle d'origine du modèle (import FBX) est conservée
+	w.transform = Transform3D(rot * Basis.from_scale(sc), (r.c as Vector3) - rot * (sc * hp))
 	return att
 
 func _rel_xf(root: Node3D, n: Node3D) -> Transform3D:

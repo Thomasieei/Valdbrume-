@@ -350,6 +350,9 @@ func _parkour_check(hv: Vector3) -> bool:
 			deep = false
 			break
 		depth = k; k += 0.35
+	# un mur juste derrière l'obstacle (benne contre une façade) : on grimpe dessus
+	if not deep and not _ray(top_p + Vector3.UP * 0.35, top_p + Vector3.UP * 0.35 + fwd * (depth + 1.4)).is_empty():
+		deep = true
 	# assez de place au-dessus pour passer ou monter
 	if not _ray(top_p + Vector3.UP * 0.05, top_p + Vector3.UP * 1.85).is_empty(): return false
 	var sprint := hv.length() > 5.2
@@ -567,6 +570,7 @@ func _physics_process(dt: float) -> void:
 				velocity.x *= 1.15; velocity.z *= 1.15
 				state = S.AIR; state_t = 0.0; ninja = true
 				vis.play("NinjaJump_Start", 0.05, 1.4, true)
+				parkour.emit("NinjaJump")
 			else:
 				velocity.y = jump_velocity; state = S.AIR; state_t = 0.0; ninja = false
 				vis.play("Jump_Start", 0.06, 1.2, true)

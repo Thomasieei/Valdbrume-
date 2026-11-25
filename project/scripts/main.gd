@@ -538,23 +538,22 @@ func _planche(out: String, nom: String, imgs: Array) -> void:
 
 ## filme une action vue de côté : 6 images à intervalles donnés (en images de jeu)
 func _filme(out: String, nom: String, sujet: Node3D, dir: Vector3, pas: Array) -> void:
-	var cam := Camera3D.new(); add_child(cam); cam.fov = 60.0
+	# caméra qui accompagne l'action, de côté si la place le permet, sinon de trois quarts arrière
+	var cam := Camera3D.new(); add_child(cam); cam.fov = 62.0
 	var side := dir.cross(Vector3.UP).normalized()
-	var c0 := sujet.global_position + dir * 2.5
-	# côté dégagé (pas de façade entre la caméra et l'action)
 	var space := get_world_3d().direct_space_state
-	var best_p := c0 + side * 8.0 + Vector3(0, 1.9, 0)
-	for cand in [side * 8.0, -side * 8.0, side * 5.5, -side * 5.5, -dir * 7.0]:
-		var p: Vector3 = c0 + cand + Vector3(0, 1.9, 0)
-		var q := PhysicsRayQueryParameters3D.create(c0 + Vector3(0, 1.2, 0), p, 1)
-		if space.intersect_ray(q).is_empty(): best_p = p; break
-	cam.global_position = best_p
-	cam.look_at(c0 + Vector3(0, 1.0, 0)); cam.current = true
 	ui.visible = false
 	var imgs := []
 	var f := 0
 	for p in pas:
 		while f < int(p): await get_tree().process_frame; f += 1
+		var c := sujet.global_position + Vector3(0, 1.0, 0)
+		var best := c - dir * 4.2 + side * 1.4 + Vector3(0, 1.3, 0)
+		for cand in [side * 6.5, -side * 6.5, side * 4.5 - dir * 2.0, -side * 4.5 - dir * 2.0]:
+			var pp: Vector3 = c + cand + Vector3(0, 0.9, 0)
+			if space.intersect_ray(PhysicsRayQueryParameters3D.create(c, pp, 1)).is_empty(): best = pp; break
+		cam.global_position = best; cam.look_at(c); cam.current = true
+		await get_tree().process_frame; f += 1
 		imgs.append(_grab())
 	await _planche(out, nom, imgs)
 	player.cam.current = true; ui.visible = true
@@ -682,7 +681,7 @@ func _on_pk(nom: String) -> void:
 	if _pk_film.on and int(_pk_film.n) < 9:
 		_pk_film.n = int(_pk_film.n) + 1
 		var fwd := Basis(Vector3.UP, player.vis.rotation.y) * Vector3(0, 0, 1)
-		_filme(_pk_out, "9%d_parkour_%s" % [int(_pk_film.n), nom.to_lower()], player, fwd, [0, 6, 12, 19, 27, 38])
+		_filme(_pk_out, "9%d_parkour_%s" % [int(_pk_film.n), nom.to_lower()], player, fwd, [0, 5, 10, 16, 23, 32])
 
 func _course(cible: Vector3, max_t: float, sprint := true) -> void:
 	var t := 0.0
