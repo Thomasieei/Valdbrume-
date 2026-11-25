@@ -1,0 +1,389 @@
+{
+  "bloques": [],
+  "etapes": [
+    {
+      "chloe": "dom_chloe",
+      "heure": "Lundi 06:00",
+      "hugo": "dom_hugo",
+      "ines": "dom_ines",
+      "karim": "dom_karim",
+      "lea": "boulangerie",
+      "marc": "gare",
+      "nadia": "dom_nadia",
+      "sofia": "dom_sofia",
+      "theo": "dom_theo",
+      "victor": "dom_victor"
+    },
+    {
+      "chloe": "dom_chloe",
+      "heure": "Lundi 07:00",
+      "hugo": "dom_hugo",
+      "ines": "dom_ines",
+      "karim": "dom_karim",
+      "lea": "boulangerie",
+      "marc": "dom_marc (en route)",
+      "nadia": "dom_nadia",
+      "sofia": "fleuriste (en route)",
+      "theo": "dom_theo",
+      "victor": "dom_victor"
+    },
+    {
+      "chloe": "dom_chloe",
+      "heure": "Lundi 08:00",
+      "hugo": "boulangerie",
+      "ines": "pharmacie",
+      "karim": "fleuriste",
+      "lea": "boulangerie",
+      "marc": "dom_marc",
+      "nadia": "commissariat (en route)",
+      "sofia": "fleuriste",
+      "theo": "dom_theo",
+      "victor": "dom_victor"
+    },
+    {
+      "chloe": "redaction (en route)",
+      "heure": "Lundi 09:00",
+      "hugo": "pharmacie",
+      "ines": "pharmacie",
+      "karim": "garage (en route)",
+      "lea": "boulangerie",
+      "marc": "dom_marc",
+      "nadia": "pharmacie (en route)",
+      "sofia": "fleuriste",
+      "theo": "cafe (en route)",
+      "victor": "tour (en route)"
+    },
+    {
+      "chloe": "redaction",
+      "heure": "Lundi 10:00",
+      "hugo": "garage (en route)",
+      "ines": "pharmacie",
+      "karim": "garage (en route)",
+      "lea": "boulangerie",
+      "marc": "dom_marc",
+      "nadia": "cafe (en route)",
+      "sofia": "fleuriste",
+      "theo": "cafe (en route)",
+      "victor": "tour"
+    },
+    {
+      "chloe": "commissariat (en route)",
+      "heure": "Lundi 11:00",
+      "hugo": "tour (en route)",
+      "ines": "pharmacie",
+      "karim": "garage (en route)",
+      "lea": "boulangerie",
+      "marc": "dom_marc",
+      "nadia": "pharmacie (en route)",
+      "sofia": "fleuriste",
+      "theo": "cafe (en route)",
+      "victor": "tour"
+    },
+    {
+      "chloe": "commissariat (en route)",
+      "heure": "Lundi 12:00",
+      "hugo": "redaction (en route)",
+      "ines": "pharmacie",
+      "karim": "garage (en route)",
+      "lea": "boulangerie",
+      "marc": "dom_marc",
+      "nadia": "cafe (en route)",
+      "sofia": "fleuriste",
+      "theo": "cafe (en route)",
+      "victor": "tour"
+    },
+    {
+      "chloe": "cafe (en route)",
+      "heure": "Lundi 13:00",
+      "hugo": "cafe (en route)",
+      "ines": "pharmacie",
+      "karim": "cafe (en route)",
+      "lea": "fleuriste (en route)",
+      "marc": "cafe (en route)",
+      "nadia": "pharmacie (en route)",
+      "sofia": "cafe (en route)",
+      "theo": "cafe (en route)",
+      "victor": "cafe (en route)"
+    },
+    {
+      "chloe": "gare (en route)",
+      "heure": "Lundi 14:00",
+      "hugo": "gare (en route)",
+      "ines": "pharmacie",
+      "karim": "garage (en route)",
+      "lea": "banc_place_s (en route)",
+      "marc": "cafe (en route)",
+      "nadia": "cafe (en route)",
+      "sofia": "fleuriste (en route)",
+      "theo": "cafe",
+      "victor": "tour (en route)"
+    },
+    {
+      "chloe": "gare (en route)",
+      "heure": "Lundi 15:00",
+      "hugo": "gare (en route)",
+      "ines": "pharmacie",
+      "karim": "garage (en route)",
+      "lea": "banc_place_s (en route)",
+      "marc": "banc_place_n (en route)",
+      "nadia": "pharmacie (en route)",
+      "sofia": "fleuriste",
+      "theo": "cafe",
+      "victor": "tour (en route)"
+    },
+    {
+      "chloe": "passage_lanternes (en route)",
+      "heure": "Lundi 16:00",
+      "hugo": "boulangerie (en route)",
+      "ines": "pharmacie",
+      "karim": "garage (en route)",
+      "lea": "banc_place_s (en route)",
+      "marc": "banc_place_n (en route)",
+      "nadia": "cafe (en route)",
+      "sofia": "fleuriste",
+      "theo": "cafe",
+      "victor": "tour (en route)"
+    },
+    {
+      "chloe": "passage_lanternes (en route)",
+      "heure": "Lundi 17:00",
+      "hugo": "boulangerie",
+      "ines": "pharmacie",
+      "karim": "garage (en route)",
+      "lea": "dom_lea (en route)",
+      "marc": "banc_place_n (en route)",
+      "nadia": "commissariat (en route)",
+      "sofia": "fleuriste",
+      "theo": "cafe",
+      "victor": "tour (en route)"
+    },
+    {
+      "chloe": "redaction (en route)",
+      "heure": "Lundi 18:00",
+      "hugo": "entrainement (en route)",
+      "ines": "pharmacie",
+      "karim": "garage (en route)",
+      "lea": "dom_lea (en route)",
+      "marc": "banc_place_n (en route)",
+      "nadia": "commissariat",
+      "sofia": "fleuriste",
+      "theo": "cafe",
+      "victor": "tour (en route)"
+    },
+    {
+      "chloe": "redaction (en route)",
+      "heure": "Lundi 19:00",
+      "hugo": "entrainement (en route)",
+      "ines": "banc_place_n (en route)",
+      "karim": "banc_place_s (en route)",
+      "lea": "dom_lea (en route)",
+      "marc": "banc_place_n (en route)",
+      "nadia": "dom_nadia (en route)",
+      "sofia": "banc_place_s (en route)",
+      "theo": "cafe",
+      "victor": "dom_victor (en route)"
+    },
+    {
+      "chloe": "dom_chloe (en route)",
+      "heure": "Lundi 20:00",
+      "hugo": "dom_hugo (en route)",
+      "ines": "dom_ines (en route)",
+      "karim": "banc_place_s (en route)",
+      "lea": "dom_lea (en route)",
+      "marc": "banc_place_n (en route)",
+      "nadia": "dom_nadia",
+      "sofia": "banc_place_s (en route)",
+      "theo": "cafe",
+      "victor": "dom_victor (en route)"
+    },
+    {
+      "chloe": "dom_chloe (en route)",
+      "heure": "Lundi 21:00",
+      "hugo": "dom_hugo (en route)",
+      "ines": "dom_ines (en route)",
+      "karim": "dom_karim (en route)",
+      "lea": "dom_lea (en route)",
+      "marc": "gare (en route)",
+      "nadia": "dom_nadia",
+      "sofia": "dom_sofia (en route)",
+      "theo": "dom_theo (en route)",
+      "victor": "dom_victor (en route)"
+    },
+    {
+      "chloe": "dom_chloe (en route)",
+      "heure": "Lundi 22:00",
+      "hugo": "dom_hugo (en route)",
+      "ines": "dom_ines (en route)",
+      "karim": "dom_karim (en route)",
+      "lea": "dom_lea (en route)",
+      "marc": "gare (en route)",
+      "nadia": "dom_nadia",
+      "sofia": "dom_sofia (en route)",
+      "theo": "dom_theo (en route)",
+      "victor": "dom_victor (en route)"
+    },
+    {
+      "chloe": "dom_chloe (en route)",
+      "heure": "Lundi 23:00",
+      "hugo": "dom_hugo (en route)",
+      "ines": "dom_ines (en route)",
+      "karim": "dom_karim (en route)",
+      "lea": "dom_lea",
+      "marc": "gare (en route)",
+      "nadia": "dom_nadia",
+      "sofia": "dom_sofia (en route)",
+      "theo": "dom_theo (en route)",
+      "victor": "dom_victor (en route)"
+    },
+    {
+      "chloe": "dom_chloe (en route)",
+      "heure": "Mardi 00:00",
+      "hugo": "dom_hugo (en route)",
+      "ines": "dom_ines (en route)",
+      "karim": "dom_karim (en route)",
+      "lea": "dom_lea",
+      "marc": "gare (en route)",
+      "nadia": "dom_nadia",
+      "sofia": "dom_sofia (en route)",
+      "theo": "dom_theo (en route)",
+      "victor": "dom_victor (en route)"
+    },
+    {
+      "chloe": "dom_chloe (en route)",
+      "heure": "Mardi 01:00",
+      "hugo": "dom_hugo (en route)",
+      "ines": "dom_ines (en route)",
+      "karim": "dom_karim (en route)",
+      "lea": "dom_lea",
+      "marc": "gare (en route)",
+      "nadia": "dom_nadia",
+      "sofia": "dom_sofia (en route)",
+      "theo": "dom_theo (en route)",
+      "victor": "dom_victor (en route)"
+    },
+    {
+      "chloe": "dom_chloe (en route)",
+      "heure": "Mardi 02:00",
+      "hugo": "dom_hugo (en route)",
+      "ines": "dom_ines (en route)",
+      "karim": "dom_karim (en route)",
+      "lea": "dom_lea",
+      "marc": "gare (en route)",
+      "nadia": "dom_nadia",
+      "sofia": "dom_sofia (en route)",
+      "theo": "dom_theo",
+      "victor": "dom_victor (en route)"
+    },
+    {
+      "chloe": "dom_chloe (en route)",
+      "heure": "Mardi 03:00",
+      "hugo": "dom_hugo",
+      "ines": "dom_ines (en route)",
+      "karim": "dom_karim (en route)",
+      "lea": "dom_lea",
+      "marc": "gare (en route)",
+      "nadia": "dom_nadia",
+      "sofia": "dom_sofia (en route)",
+      "theo": "dom_theo",
+      "victor": "dom_victor (en route)"
+    },
+    {
+      "chloe": "dom_chloe (en route)",
+      "heure": "Mardi 04:00",
+      "hugo": "dom_hugo",
+      "ines": "dom_ines (en route)",
+      "karim": "dom_karim (en route)",
+      "lea": "dom_lea",
+      "marc": "gare",
+      "nadia": "dom_nadia",
+      "sofia": "dom_sofia (en route)",
+      "theo": "dom_theo",
+      "victor": "dom_victor (en route)"
+    }
+  ],
+  "journal": [
+    "[Lundi 07:41] Sofia Rossi et Karim Benali discutent (attirance).",
+    "[Lundi 08:21] Sofia Rossi et Karim Benali discutent (attirance).",
+    "[Lundi 08:51] Sofia Rossi et Karim Benali discutent (attirance).",
+    "[Lundi 17:25] Léa Moreau et Théo Girard discutent (voisins).",
+    "[Lundi 17:55] Léa Moreau et Théo Girard discutent (voisins)."
+  ],
+  "memoire": {
+    "_quetes": {
+      "balafre": {
+        "compte": 0,
+        "echec": false,
+        "etape": 1.0,
+        "fini": false
+      },
+      "lanternes": {
+        "compte": 0,
+        "echec": false,
+        "etape": 0,
+        "fini": false
+      }
+    },
+    "chloe": {
+      "discussions": 0.0,
+      "relation": 0.0,
+      "rencontre": false,
+      "souvenirs": []
+    },
+    "hugo": {
+      "discussions": 0.0,
+      "entrainements": 1,
+      "relation": 0.0,
+      "rencontre": false,
+      "souvenirs": []
+    },
+    "ines": {
+      "discussions": 0.0,
+      "relation": 0.0,
+      "rencontre": false,
+      "souvenirs": []
+    },
+    "karim": {
+      "discussions": 0.0,
+      "relation": 0.0,
+      "rencontre": false,
+      "souvenirs": []
+    },
+    "lea": {
+      "discussions": 0.0,
+      "relation": 0.0,
+      "rencontre": false,
+      "souvenirs": []
+    },
+    "marc": {
+      "discussions": 0.0,
+      "relation": 0.0,
+      "rencontre": false,
+      "souvenirs": []
+    },
+    "nadia": {
+      "discussions": 0.0,
+      "relation": 0.0,
+      "rencontre": false,
+      "souvenirs": []
+    },
+    "sofia": {
+      "discussions": 0.0,
+      "relation": 0.0,
+      "relation_karim": 1,
+      "rencontre": false,
+      "souvenirs": []
+    },
+    "theo": {
+      "discussions": 0.0,
+      "relation": 0.0,
+      "rencontre": false,
+      "souvenirs": []
+    },
+    "victor": {
+      "discussions": 0.0,
+      "relation": 0.0,
+      "rencontre": false,
+      "souvenirs": []
+    }
+  }
+}
