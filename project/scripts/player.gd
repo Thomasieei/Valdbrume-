@@ -49,6 +49,7 @@ var attack_heavy := false
 var trail: WeaponTrail
 var knock := Vector3.ZERO
 var lunge := 2.2                # élan du coup (aimanté vers la cible)
+var lunge_cible: Node3D = null
 var combo_n := 0               # coups portés d'affilée (affiché à l'écran)
 var combo_t := 0.0
 
@@ -132,6 +133,8 @@ func _start_attack(n: String) -> void:
 	# visée assistée : on se tourne vers l'ennemi le plus proche devant soi
 	var t := cible_visee()
 	lunge = 2.2
+	lunge_cible = null
+	if t and t.global_position.distance_to(global_position) < 5.0: lunge_cible = t
 	if t:
 		var to := t.global_position - global_position
 		vis.rotation.y = atan2(to.x, to.z)
@@ -165,7 +168,7 @@ func _strike() -> void:
 	var fwd := Basis(Vector3.UP, vis.rotation.y) * Vector3(0, 0, 1)
 	match style():
 		"poings", "epee":
-			var reach := 2.4 if style() == "epee" else 1.7
+			var reach := 2.5 if style() == "epee" else 2.0
 			if heavy: reach += 0.4
 			var touche := false
 			for e in get_tree().get_nodes_in_group("ennemis"):
@@ -316,7 +319,13 @@ func _physics_process(dt: float) -> void:
 			if state == S.EMOTE and state_t > state_len: state = S.LOCO
 		S.ATTACK:
 			# petite avancée au moment du coup (vitesse fixe, jamais cumulée), puis arrêt net
-			if state_t < 0.18 and is_on_floor(): target = Basis(Vector3.UP, vis.rotation.y) * Vector3(0, 0, 1) * lunge
+			if state_t < 0.2 and is_on_floor() and lunge_cible and is_instance_valid(lunge_cible) and lunge_cible.get("vivant") != false:
+				# suit la cible pendant l'élan : le coup arrive au contact même si elle recule
+				var tl := lunge_cible.global_position - global_position; tl.y = 0
+				var gap2: float = tl.length() - (0.95 + float(lunge_cible.get("rayon")))
+				target = tl.normalized() * clampf(gap2 / maxf(0.2 - state_t, 0.05), 0.0, 12.0)
+				vis.rotation.y = atan2(tl.x, tl.z)
+			elif state_t < 0.18 and is_on_floor(): target = Basis(Vector3.UP, vis.rotation.y) * Vector3(0, 0, 1) * lunge
 			else: target = hv.move_toward(Vector3.ZERO, 30.0 * dt) if is_on_floor() else hv
 			if state_t > state_len * 0.55 and queued != "":
 				var list: Array = COMBOS[style()][queued]

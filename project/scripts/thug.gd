@@ -157,7 +157,7 @@ func touche(dmg: float, from: Vector3, kind := "") -> void:
 	elif coups_recus == 2: anim = "Hit_Head"
 	elif cote > 0.45: anim = "Hit_Shoulder_R"
 	elif cote < -0.45: anim = "Hit_Shoulder_L"
-	recul = away * (7.5 if kind == "lourd" else 5.5) / sqrt(float(d.poids))
+	recul = away * (6.5 if kind == "lourd" else 4.6) / sqrt(float(d.poids))
 	_passe(E.TOUCHE, vis.length(anim) * 0.85 + 0.08)
 	vis.play(anim, 0.04, 1.0, true)
 	_face(from, 1.0, 60.0)
