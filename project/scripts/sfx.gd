@@ -47,7 +47,7 @@ static func _flux_de(nom: String) -> AudioStream:
 	var l: Array = BANQUE[nom]
 	var f: String = l[randi() % l.size()]
 	if not _flux.has(f):
-		var p := DIR + f + (".wav" if ResourceLoader.exists(DIR + f + ".wav") else ".ogg")
+		var p: String = DIR + f + (".wav" if ResourceLoader.exists(DIR + f + ".wav") else ".ogg")
 		_flux[f] = load(p)
 	return _flux[f]
 
@@ -67,5 +67,5 @@ static func precharge() -> void:
 	for nom in BANQUE:
 		for f in BANQUE[nom]:
 			if not _flux.has(f):
-				var p := DIR + f + (".wav" if ResourceLoader.exists(DIR + f + ".wav") else ".ogg")
+				var p: String = DIR + String(f) + (".wav" if ResourceLoader.exists(DIR + String(f) + ".wav") else ".ogg")
 				_flux[f] = load(p)
