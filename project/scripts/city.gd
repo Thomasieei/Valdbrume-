@@ -16,8 +16,11 @@ func _ready() -> void:
 	_load_skyline()
 	_build_collisions()
 	_build_occluders()
+	printerr("DEMARRAGE lampadaires")
 	_build_lamps()
+	printerr("DEMARRAGE mobilier")
 	_build_props()
+	printerr("DEMARRAGE mobilier posé")
 
 func _load_chunks() -> void:
 	var root := Node3D.new()

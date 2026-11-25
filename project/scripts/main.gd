@@ -15,12 +15,15 @@ var quests: Node
 var defi: Node
 var day: Node
 
+var _hb := 0.0
 func _ready() -> void:
+	printerr("DEMARRAGE environnement")
 	_environment()
 	city = Node3D.new()
 	city.name = "Ville"
 	city.set_script(load("res://scripts/city.gd"))
 	add_child(city)
+	printerr("DEMARRAGE ville prête")
 	player = CharacterBody3D.new()
 	player.name = "Joueur"
 	player.set_script(load("res://scripts/player.gd"))
@@ -43,7 +46,9 @@ func _ready() -> void:
 	add_child(day)
 	day.apply(life.hour())
 	player.ko.connect(_ko)
+	printerr("DEMARRAGE sons")
 	Sfx.init(self); Sfx.precharge()
+	printerr("DEMARRAGE sons prêts")
 	player.pas.connect(func(s: String): Sfx.joue("echelle" if s == "echelle" else "pas", player.global_position, -4.0 if s == "course" else -9.0, 0.1))
 	player.echelles = city.meta.get("echelles", [])
 	defi = Node.new(); defi.name = "Defi"
@@ -135,6 +140,9 @@ func _environment() -> void:
 	add_child(sun)
 
 func _process(_dt: float) -> void:
+	_hb += _dt
+	if _hb > 5.0 and OS.get_cmdline_user_args().size() > 0:
+		_hb = 0.0; printerr("BATTEMENT ", Engine.get_frames_drawn(), " joueur=", player.global_position.snapped(Vector3.ONE * 0.1), " etat=", player.state)
 	if stats.visible:
 		stats.text = "%d i/s · %d appels · %.0fk tri" % [Engine.get_frames_per_second(),
 			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
@@ -804,6 +812,7 @@ func _test_parcours() -> void:
 
 # ------------------------------------------------------------------ parcours des toits, joué
 func _test_toits() -> void:
+	printerr("ETAPE test lancé")
 	var out := ProjectSettings.globalize_path("res://").path_join("../captures")
 	DirAccess.make_dir_recursive_absolute(out)
 	for k in quests.etat.keys(): quests.etat.erase(k)
