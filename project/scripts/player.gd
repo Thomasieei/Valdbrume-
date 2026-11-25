@@ -20,7 +20,7 @@ var pivot := Node3D.new()
 var arm := SpringArm3D.new()
 var cam := Camera3D.new()
 
-enum S { LOCO, AIR, ROLL, SLIDE, ATTACK, DODGE, EMOTE, LAND, HIT, DEAD, LAUNCH, SOL, GETUP, PARKOUR, WALLRUN }
+enum S { LOCO, AIR, ROLL, SLIDE, ATTACK, DODGE, EMOTE, LAND, HIT, DEAD, LAUNCH, SOL, GETUP, PARKOUR, WALLRUN, ECHELLE }
 var state := S.LOCO
 var state_t := 0.0
 var state_len := 0.0
@@ -61,6 +61,10 @@ var mur_n := Vector3.ZERO
 var mur_dir := Vector3.ZERO
 var mur_cote := "L"
 signal parkour(nom: String)
+signal pas(surface: String)          # bruit de pas, d'échelle…
+var echelles: Array = []         # [x, z, bas, haut, direction du regard]
+var echelle: Array = []
+var _pas_d := 0.0
 var combo_n := 0               # coups portés d'affilée (affiché à l'écran)
 var combo_t := 0.0
 
@@ -148,6 +152,10 @@ func _start_attack(n: String) -> void:
 	queued = ""
 	attack_name = n; hit_i = 0
 	attack_heavy = n in COMBOS[style()].get("lourde", []) or n.begins_with("Sword_Aerial")
+	var bouche := global_position + Vector3(0, 1.3, 0)
+	match style():
+		"poings", "epee": Sfx.joue("souffle_lourd" if attack_heavy else "souffle", bouche, -4.0, 0.12)
+		"magie": Sfx.joue("sort", bouche, -6.0)
 	# visée assistée : on se tourne vers l'ennemi le plus proche devant soi
 	var t := cible_visee()
 	lunge = 2.2
@@ -196,6 +204,8 @@ func _strike() -> void:
 					var crit := randf() < 0.12
 					var val := dmg * (1.6 if crit else 1.0)
 					e.touche(val, global_position, "lourd" if heavy else "")
+					Sfx.joue("coup_fort" if heavy or crit else "coup", global_position + Vector3(0, 1.2, 0) + fwd)
+					if style() == "epee": Sfx.joue("lame", global_position + Vector3(0, 1.2, 0) + fwd, -3.0)
 					combo_n = combo_n + 1 if combo_t < 1.6 else 1
 					combo_t = 0.0
 					var p: Vector3 = e.global_position + Vector3(0, float(e.hauteur) * 0.55, 0) - to.normalized() * float(e.rayon)
@@ -221,6 +231,7 @@ func _strike() -> void:
 			var from2 := _bone_pos("hand_l") + fwd * 0.15
 			var t2 := cible_visee(32.0)
 			var pr2 := Projectile.new()
+			Sfx.joue("corde", from2, -2.0); Sfx.joue("fleche", from2, -6.0)
 			pr2.exclude = [get_rid()]; pr2.kind = "fleche"; pr2.degats = dmg; pr2.vie = 1.4
 			get_parent().add_child(pr2)
 			pr2.lance(from2, (t2.global_position + Vector3(0, 1.0, 0) - from2).normalized() if t2 else fwd, 38.0, t2)
@@ -248,8 +259,9 @@ func _hitstop(d: float) -> void:
 
 ## coup reçu (les roulades et glissades esquivent)
 func blesse(dmg: float, from: Vector3, force := 4.0) -> void:
-	if not vivant or state in [S.ROLL, S.SLIDE, S.DEAD, S.LAUNCH, S.SOL, S.GETUP, S.PARKOUR, S.WALLRUN]: return
+	if not vivant or state in [S.ROLL, S.SLIDE, S.DEAD, S.LAUNCH, S.SOL, S.GETUP, S.PARKOUR, S.WALLRUN, S.ECHELLE]: return
 	pv -= dmg; hurt_t = 0.0; hurt_flash = 1.0; shake = 0.45 + force * 0.04
+	Sfx.joue("coup", global_position + Vector3(0, 1.3, 0))
 	combo_n = 0
 	var away := global_position - from; away.y = 0
 	knock = away.normalized() * force
@@ -265,8 +277,9 @@ func blesse(dmg: float, from: Vector3, force := 4.0) -> void:
 
 ## projeté par un coup puissant : envol, chute sur le dos, relevé en kip-up
 func projete(dmg: float, from: Vector3) -> void:
-	if not vivant or state in [S.ROLL, S.SLIDE, S.DEAD, S.LAUNCH, S.SOL, S.GETUP, S.PARKOUR, S.WALLRUN]: return
+	if not vivant or state in [S.ROLL, S.SLIDE, S.DEAD, S.LAUNCH, S.SOL, S.GETUP, S.PARKOUR, S.WALLRUN, S.ECHELLE]: return
 	pv -= dmg; hurt_t = 0.0; hurt_flash = 1.0; shake = 1.0; combo_n = 0
+	Sfx.joue("coup_fort", global_position + Vector3(0, 1.3, 0), 2.0)
 	var away := global_position - from; away.y = 0
 	away = away.normalized()
 	Fx.nombre(get_parent(), global_position + Vector3(0, 2.0, 0), dmg, true, Color(1.0, 0.35, 0.3))
@@ -322,8 +335,8 @@ func _ray(a: Vector3, b: Vector3) -> Dictionary:
 
 ## en pleine course face à un obstacle : on lit sa hauteur et son épaisseur, puis
 ## on choisit le mouvement (marche, saut de barrière, vrille, escalade)
-func _parkour_check(hv: Vector3) -> bool:
-	var fwd := hv.normalized()
+func _parkour_check(hv: Vector3, lent := false, dir_force := Vector3.ZERO) -> bool:
+	var fwd := hv.normalized() if dir_force == Vector3.ZERO else dir_force
 	var pos := global_position
 	var look := clampf(hv.length() * 0.3, 1.1, 2.0)
 	var hit := {}
@@ -360,6 +373,18 @@ func _parkour_check(hv: Vector3) -> bool:
 	if not _ray(top_p + Vector3.UP * 0.05, top_p + Vector3.UP * 1.85).is_empty(): return false
 	var sprint := hv.length() > 5.2
 	var p_top := Vector3(hp.x, top_p.y, hp.z) + fwd * 0.55
+	# au-dessus du vide (bord de toit) : seulement en sprint, et on s'élance
+	var vide := not deep and land_y < pos.y - 1.2
+	if lent or (vide and not sprint):
+		# en marchant (ou bouton saut) : on ne fait qu'escalader
+		if vide or h2 < 0.62 or not deep and h2 < 1.0: return false
+		if h2 <= 1.45: return _pk_start("ClimbUp_1m", "grimpe", pos, p_top, top_p.y, 1.25, 0.0)
+		return _pk_start("ClimbUp_2m", "grimpe", pos, p_top, top_p.y, 1.15, 0.0)
+	if vide and h2 <= 1.4 and depth <= 1.5:
+		var a0: String = ["PK_Flip", "PK_Vault"][pk_tour % 2]; pk_tour += 1
+		var bout0 := pos + fwd * maxf(AnimBank.avance_totale(a0) * 0.9, dist + depth + 0.8)
+		var ok := _pk_start(a0, "elan", pos, bout0, pos.y, 1.05, hv.length())
+		return ok
 	if h2 <= 0.62:
 		if deep or depth > 1.0: return _pk_start("StepUp", "monte", pos, p_top, top_p.y, 1.5, hv.length())
 		return _pk_start("PK_Vault", "passe", pos, hp + fwd * (depth + 0.55), land_y, 1.25, hv.length())
@@ -385,6 +410,8 @@ func _pk_start(anim: String, kind: String, p0: Vector3, p1: Vector3, y1: float, 
 	vis.play(anim, 0.08, vitesse, true)
 	velocity = Vector3.ZERO
 	parkour.emit(anim)
+	Sfx.joue("elan" if kind in ["passe", "elan"] else "tissu", global_position + Vector3.UP, -4.0, 0.1)
+	if kind == "grimpe": Sfx.joue("tissu", global_position + Vector3.UP, -6.0)
 	return true
 
 func _pk_update(dt: float) -> void:
@@ -398,16 +425,93 @@ func _pk_update(dt: float) -> void:
 			var f := AnimBank.progression(String(pk.anim), t, dur)
 			pos = p0.lerp(p1, f)
 			pos.y = lerpf(p0.y, p1.y, smoothstep(0.55, 1.0, k))
+		"elan":
+			var f2 := AnimBank.progression(String(pk.anim), t, dur)
+			pos = p0.lerp(p1, f2); pos.y = p0.y
 		"monte", "grimpe":
 			# on s'approche du mur, on se hisse, puis on avance sur le dessus
 			var rise := smoothstep(0.08, 0.7 if pk.kind == "grimpe" else 0.5, k)
 			var fw := smoothstep(0.45 if pk.kind == "grimpe" else 0.15, 1.0, k)
 			pos = Vector3(lerpf(p0.x, p1.x, fw), lerpf(p0.y, p1.y, rise), lerpf(p0.z, p1.z, fw))
 	global_position = pos
+	if t >= dur and pk.kind == "elan":
+		# on quitte le bord : chute libre en gardant l'élan (on peut se rattraper en face)
+		state = S.AIR; state_t = 0.0; pk_cd = 0.2; ninja = true; air_jumps = 0
+		velocity = (pk.fwd as Vector3) * maxf(float(pk.v), 6.5) + Vector3.UP * 1.2
+		vis.play("NinjaJump_Idle_Loop", 0.15)
+		return
 	if t >= dur:
 		state = S.LOCO; state_t = 0.0; pk_cd = 0.35
 		velocity = (pk.fwd as Vector3) * float(pk.v)
 		if float(pk.v) > 0.5 and pk.kind == "passe": vis.play("Sprint_Loop" if float(pk.v) > 5.0 else "Jog_Fwd_Loop", 0.12)
+
+## rattrapage : en l'air, face à un rebord à portée de mains, on s'y hisse
+func _rebord_check() -> bool:
+	var hv := Vector3(velocity.x, 0, velocity.z)
+	if hv.length() < 1.0 or velocity.y > 2.5 or pk_cd > 0.0: return false
+	var fwd := hv.normalized()
+	var pos := global_position
+	var r := _ray(pos + Vector3.UP * 1.3, pos + Vector3.UP * 1.3 + fwd * 0.9)
+	if r.is_empty() or absf((r.normal as Vector3).y) > 0.4: return false
+	var hp: Vector3 = r.position
+	var probe := hp + fwd * 0.2
+	var top := _ray(Vector3(probe.x, pos.y + 2.6, probe.z), Vector3(probe.x, pos.y - 0.2, probe.z))
+	if top.is_empty(): return false
+	var ty: float = (top.position as Vector3).y
+	var h := ty - pos.y
+	if h < 0.3 or h > 2.35: return false
+	if not _ray(top.position + Vector3.UP * 0.05, top.position + Vector3.UP * 1.8).is_empty(): return false
+	parkour.emit("Rattrapage")
+	return _pk_start("ClimbUp_2m" if h > 1.2 else "ClimbUp_1m", "grimpe", pos, Vector3(hp.x, ty, hp.z) + fwd * 0.55, ty, 1.2, 0.0)
+
+## échelles de secours : on s'y accroche en poussant vers le mur
+func _echelle_check(mv: Vector3) -> bool:
+	if mv.length() < 0.3: return false
+	for e in echelles:
+		var f := Basis(Vector3.UP, deg_to_rad(float(e[4]))) * Vector3(0, 0, 1)
+		var d := Vector2(global_position.x - float(e[0]), global_position.z - float(e[1])).length()
+		if d < 0.9 and global_position.y > float(e[2]) - 0.5 and global_position.y < float(e[3]) - 1.0 and mv.normalized().dot(f) > 0.5:
+			echelle = e
+			state = S.ECHELLE; state_t = 0.0
+			global_position = Vector3(float(e[0]), maxf(global_position.y, float(e[2])), float(e[1]))
+			velocity = Vector3.ZERO
+			vis.rotation.y = atan2(f.x, f.z)
+			vis.play("Climb_Enter", 0.1, 1.4, true)
+			parkour.emit("Echelle")
+			return true
+	return false
+
+func _echelle_update(dt: float, mv: Vector3) -> void:
+	var e := echelle
+	var f := Basis(Vector3.UP, deg_to_rad(float(e[4]))) * Vector3(0, 0, 1)
+	var monte := mv.normalized().dot(f) if mv.length() > 0.2 else 0.0
+	var want := Input.is_action_just_pressed("ui_accept") or _jump_req
+	_jump_req = false
+	if want:
+		# saut arrière depuis l'échelle
+		state = S.AIR; state_t = 0.0; echelle = []
+		velocity = -f * 4.0 + Vector3.UP * 4.5
+		vis.rotation.y = atan2(-f.x, -f.z)
+		vis.play("Jump_Start", 0.08, 1.2, true)
+		return
+	if state_t < 0.45: return              # le temps de s'agripper
+	var vy := 0.0
+	if monte > 0.3:
+		vy = 2.1; vis.play("Climb_Up_Loop", 0.15, 1.35)
+	elif monte < -0.3:
+		vy = -2.6; vis.play("Climb_Down_Loop", 0.15, 1.4)
+	else:
+		vis.play("Climb_Idle_Loop", 0.2)
+	global_position.y += vy * dt
+	_pas_d += absf(vy) * dt
+	if _pas_d > 0.32: _pas_d = 0.0; pas.emit("echelle")
+	if global_position.y <= float(e[2]) and vy < 0.0:
+		global_position.y = float(e[2]); state = S.LOCO; echelle = []
+	elif global_position.y >= float(e[3]) - 1.25:
+		# en haut : on passe par-dessus le parapet et on prend pied sur le toit
+		echelle = []
+		var p1 := Vector3(float(e[0]), float(e[3]), float(e[1])) + f * 1.3
+		_pk_start("Climb_Exit", "grimpe", global_position, p1, float(e[3]), 1.3, 0.0)
 
 ## course sur un mur : sprint + saut le long d'une façade
 func _wallrun_check(hv: Vector3) -> bool:
@@ -468,6 +572,11 @@ func _physics_process(dt: float) -> void:
 	var target := Vector3.ZERO
 	var sprint := sprint_held or Input.is_key_pressed(KEY_SHIFT) or amount > 0.92
 	pk_cd -= dt
+	if state == S.ECHELLE:
+		_echelle_update(dt, mv)
+		return
+	if state == S.LOCO and is_on_floor() and not echelles.is_empty() and _echelle_check(mv): return
+	if state == S.AIR and state_t > 0.12 and _rebord_check(): return
 	if state == S.PARKOUR:
 		_pk_update(dt)
 		_animate(0.0)
@@ -493,6 +602,8 @@ func _physics_process(dt: float) -> void:
 		var hv0 := Vector3(velocity.x, 0, velocity.z)
 		if hv0.length() > 3.6 and hv0.normalized().dot(mv.normalized()) > 0.7:
 			if _parkour_check(hv0): return
+		elif hv0.length() > 1.0 and hv0.normalized().dot(mv.normalized()) > 0.7:
+			if _parkour_check(hv0, true): return
 	match state:
 		S.LOCO, S.EMOTE, S.LAND:
 			if amount > 0.05:
@@ -539,6 +650,7 @@ func _physics_process(dt: float) -> void:
 				state = S.SOL; state_t = 0.0; vis.rotation.x = 0.0
 				vis.play("LiftAir_Fall_Impact", 0.06, 1.0, true)
 				Fx.choc(get_parent(), global_position + Vector3(0, 0.06, 0), 3.0, Color(0.75, 0.7, 0.62), true, 0.5)
+				Sfx.joue("chute", global_position, 0.0)
 				shake = 0.6
 		S.SOL:
 			target = hv.move_toward(Vector3.ZERO, 14.0 * dt)
@@ -567,6 +679,9 @@ func _physics_process(dt: float) -> void:
 		if want_jump and state in [S.LOCO, S.EMOTE, S.LAND, S.SLIDE]:
 			var hvj := Vector3(velocity.x, 0, velocity.z)
 			if state == S.LOCO and _wallrun_check(hvj): return
+			# saut face à un rebord : on l'escalade
+			var face_dir := Basis(Vector3.UP, vis.rotation.y) * Vector3(0, 0, 1)
+			if state == S.LOCO and _parkour_check(face_dir * 2.0, true, face_dir): return
 			if hvj.length() > 5.0:
 				# saut de ninja en pleine course : plus haut, plus loin
 				velocity.y = jump_velocity * 1.1
@@ -583,6 +698,13 @@ func _physics_process(dt: float) -> void:
 			air_jumps = 1; velocity.y = jump_velocity * (1.15 if ninja else 0.95); state = S.AIR; state_t = 0.0
 			vis.play("PK_NinjaDouble" if ninja else "DoubleJump", 0.06, 1.1, true)
 		if state == S.LOCO and velocity.y < -2.0: state = S.AIR; state_t = 0.0
+	# bruits de pas (au rythme de la foulée)
+	if is_on_floor() and state in [S.LOCO, S.LAND]:
+		var vh := Vector2(velocity.x, velocity.z).length()
+		if vh > 0.6:
+			_pas_d += vh * dt
+			if _pas_d > (0.8 if vh > 5.0 else 0.68 if vh > 3.0 else 0.55):
+				_pas_d = 0.0; pas.emit("course" if vh > 5.0 else "pas")
 	var was_air := state == S.AIR
 	if was_air: chute_v = minf(chute_v, velocity.y)
 	move_and_slide()
@@ -594,12 +716,15 @@ func _physics_process(dt: float) -> void:
 			state_len = vis.length("Roll") * 0.85
 			vis.play("Roll", 0.05, 1.2, true)
 			parkour.emit("Roll")
+			Sfx.joue("chute", global_position, -4.0); Sfx.joue("tissu", global_position, -6.0)
 		elif ninja:
 			state = S.LAND; state_t = 0.0
 			vis.play("NinjaJump_Land", 0.05, 1.8, true)
+			Sfx.joue("reception", global_position, -3.0)
 		else:
 			state = S.LAND; state_t = 0.0
 			vis.play("Jump_Land", 0.05, 1.3, true)
+			Sfx.joue("reception", global_position, -6.0)
 		chute_v = 0.0; ninja = false
 	# orientation du corps
 	var face := hv if hv.length() > 0.4 else Vector3.ZERO

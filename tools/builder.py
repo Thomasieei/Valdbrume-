@@ -196,8 +196,16 @@ class City:
         s._corners(l, st, tint)
         # toit plat (un seul quad géré au bake) + collisions + occulteur
         s.put('@roof', (l.x0+l.x1)/2, l.top, (l.z0+l.z1)/2, 0, ((l.x1-l.x0), (l.z1-l.z0)), tag='roof')
-        h = l.height
-        s.boxes.append(((l.x0+l.x1)/2, h/2, (l.z0+l.z1)/2, l.x1-l.x0, h, l.z1-l.z0))
+        if l.roof == 'mansarde':
+            h = l.height
+            s.boxes.append(((l.x0+l.x1)/2, h/2, (l.z0+l.z1)/2, l.x1-l.x0, h, l.z1-l.z0))
+        else:
+            # toit-terrasse praticable : le bloc s'arrête au niveau du toit, la corniche
+            # forme un parapet de 0,9 m tout autour (on peut l'enjamber, s'y accrocher)
+            t, cx, cz, w, d, e = l.top, (l.x0+l.x1)/2, (l.z0+l.z1)/2, l.x1-l.x0, l.z1-l.z0, 0.32
+            s.boxes.append((cx, t/2, cz, w, t, d))
+            s.boxes.append((cx, t+0.45, l.z0+e/2, w, 0.9, e)); s.boxes.append((cx, t+0.45, l.z1-e/2, w, 0.9, e))
+            s.boxes.append((l.x0+e/2, t+0.45, cz, e, 0.9, d-2*e)); s.boxes.append((l.x1-e/2, t+0.45, cz, e, 0.9, d-2*e))
         s.occluders.append(((l.x0+l.x1)/2, l.top/2, (l.z0+l.z1)/2, l.x1-l.x0-0.6, l.top, l.z1-l.z0-0.6))
         s._roof_props(l)
 

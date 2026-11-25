@@ -12,6 +12,7 @@ var env: Environment
 var sun: DirectionalLight3D
 var life
 var quests: Node
+var defi: Node
 var day: Node
 
 func _ready() -> void:
@@ -42,6 +43,14 @@ func _ready() -> void:
 	add_child(day)
 	day.apply(life.hour())
 	player.ko.connect(_ko)
+	Sfx.init(self); Sfx.precharge()
+	player.pas.connect(func(s: String): Sfx.joue("echelle" if s == "echelle" else "pas", player.global_position, -4.0 if s == "course" else -9.0, 0.1))
+	player.echelles = city.meta.get("echelles", [])
+	defi = Node.new(); defi.name = "Defi"
+	defi.set_script(load("res://scripts/defi.gd"))
+	add_child(defi)
+	defi.setup(life, player, city.meta.get("anneaux", []))
+	defi.fini.connect(func(t: float, rec: bool): quests.annonce.emit("Défi des toits", "Temps : %s%s" % [defi._fmt(t), " — nouveau record !" if rec else ""]))
 	Fx.prewarm(self, player.cam)
 	ui = CanvasLayer.new()
 	add_child(ui)
@@ -65,6 +74,7 @@ func _ready() -> void:
 	elif "--combat" in args: _test_combat.call_deferred()
 	elif "--mission" in args: _test_mission.call_deferred()
 	elif "--parcours" in args: _test_parcours.call_deferred()
+	elif "--toits" in args: _test_toits.call_deferred()
 
 ## K.-O. : on se réveille à la pharmacie, soigné par Inès
 func _ko() -> void:
@@ -789,4 +799,51 @@ func _test_parcours() -> void:
 	imgs.append(_grab())
 	_planche(out, "99_fleches_tir_et_plantees", imgs)
 	print("PARCOURS ", JSON.stringify({"mouvements": _pk_log}))
+	get_tree().quit()
+
+
+# ------------------------------------------------------------------ parcours des toits, joué
+func _test_toits() -> void:
+	var out := ProjectSettings.globalize_path("res://").path_join("../captures")
+	DirAccess.make_dir_recursive_absolute(out)
+	for k in quests.etat.keys(): quests.etat.erase(k)
+	life.minute = 16 * 60; life.warp(); day.force_hour = 16.0; day.apply(16.0)
+	_pk_out = out; _pk_film = {"on": true, "n": 0}
+	player.parkour.connect(_on_pk)
+	var res := {"etapes": []}
+	defi.fini.connect(func(t: float, _r: bool): res["defi_s"] = t)
+	player.global_position = Vector3(-198.6, 0.3, -97.5)
+	await _wait(20)
+	printerr("ETAPE échelle")
+	await _course(Vector3(-205.0, 0, -97.5), 4.0, false)
+	var t := 0.0
+	while t < 14.0 and player.state in [15, 13]:
+		_face_to(Vector3(-210.0, player.global_position.y, -97.5)); player.move_input = Vector2(0, -1)
+		await get_tree().physics_frame; t += 1.0 / 60.0
+	res.etapes.append(["echelle", player.global_position.snapped(Vector3.ONE * 0.1)])
+	printerr("ETAPE caisses ", player.global_position)
+	await _course(Vector3(-209.5, 0, -96.0), 4.0, false)
+	await _course(Vector3(-209.5, 0, -88.0), 9.0, false)
+	res.etapes.append(["toit_haut", player.global_position.snapped(Vector3.ONE * 0.1)])
+	printerr("ETAPE descente ", player.global_position)
+	await _course(Vector3(-209.5, 0, -74.0), 6.0, true)
+	res.etapes.append(["toit_bas", player.global_position.snapped(Vector3.ONE * 0.1)])
+	printerr("ETAPE grand saut ", player.global_position)
+	await _course(Vector3(-214.5, 0, -76.0), 4.0, false)
+	await _course(Vector3(-190.0, 0, -76.5), 9.0, true)
+	res.etapes.append(["en_face", player.global_position.snapped(Vector3.ONE * 0.1)])
+	printerr("ETAPE vers le bord ", player.global_position)
+	await _course(Vector3(-190.0, 0, -64.0), 6.0, true)
+	printerr("ETAPE saut final ", player.global_position)
+	await _course(Vector3(-206.0, 0, -64.0), 6.0, true)
+	await _wait(90)
+	res.etapes.append(["arrivee", player.global_position.snapped(Vector3.ONE * 0.1)])
+	res["record"] = defi.record()
+	# vue d'ensemble du parcours depuis le haut
+	var cam := Camera3D.new(); add_child(cam); cam.fov = 60.0
+	cam.global_position = Vector3(-176.0, 30.0, -112.0); cam.look_at(Vector3(-202.0, 10.0, -80.0)); cam.current = true
+	ui.visible = false
+	await _wait(5)
+	get_viewport().get_texture().get_image().save_png(out.path_join("9z_toits_vue_ensemble.png"))
+	print("TOITS ", JSON.stringify(res), " mouvements=", JSON.stringify(_pk_log))
 	get_tree().quit()

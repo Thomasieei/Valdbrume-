@@ -69,7 +69,9 @@ func _physics_process(dt: float) -> void:
 	var q := PhysicsRayQueryParameters3D.create(global_position, next, 1, exclude)
 	var hit := get_world_3d().direct_space_state.intersect_ray(q)
 	if hit:
-		if kind == "fleche": _plante(get_parent(), hit.position)
+		if kind == "fleche":
+			_plante(get_parent(), hit.position)
+			Sfx.joue("fleche_plantee", hit.position, -2.0)
 		_boum(hit.position + hit.normal * 0.1); return
 	global_position = next
 	if vel.length() > 0.1: look_at(global_position + vel, Vector3.UP)
@@ -91,6 +93,7 @@ func _plante(support: Node, p: Vector3) -> void:
 func _boum(p: Vector3) -> void:
 	var parent := get_parent()
 	if kind == "sort":
+		Sfx.joue("explosion", p, -5.0)
 		Fx.spawn(parent, couleur, "Radial_01", Transform3D(Basis(), p - Vector3(0, 0.1, 0)), 1.0 * taille, 1.6)
 		Fx.flash(parent, p, Fx.TEINTE[couleur], 4.0 * taille, 7.0)
 	else:

@@ -77,6 +77,7 @@ func touche(dmg: float, from: Vector3, _kind := "") -> void:
 	if not vivant: return
 	pv -= dmg
 	flash = 1.0
+	Sfx.joue("coup", global_position + Vector3(0, hauteur * 0.6, 0), -2.0)
 	var away := global_position - from; away.y = 0
 	recul = away.normalized() * (3.5 if type == "rodeur" else 1.2)
 	_barre()
@@ -87,6 +88,7 @@ func _meurt() -> void:
 	remove_from_group("ennemis")
 	collision_layer = 0
 	anim.play("Die", 0.1)
+	Sfx.joue("chute", global_position, 2.0)
 	barre.visible = false
 	mort.emit(self)
 

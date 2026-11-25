@@ -237,8 +237,12 @@ def main():
         if src: shutil.copy(os.path.join(props.CC, src), os.path.join(pdir, t + '.glb'))
     for f in os.listdir(pdir):
         if f.endswith('.glb'): write_import_scene(os.path.join(pdir, f))
-    meta['props'] = props.PLACES
-    meta['boxes'] += props.boxes()
+    import rooftops
+    meta['props'] = props.PLACES + [[t, x, z, r, y] for (t, x, y, z, r) in rooftops.OBJETS_TOITS]
+    meta['boxes'] += props.boxes() + rooftops.boxes()
+    rooftops.ladder_mesh(os.path.join(pdir, 'echelle.glb')); write_import_scene(os.path.join(pdir, 'echelle.glb'))
+    meta['echelles'] = rooftops.ECHELLES
+    meta['anneaux'] = rooftops.ANNEAUX
     for (x, z, _r) in meta['lampes']:
         meta['boxes'].append([x, 1.6, z, 0.3, 3.2, 0.3])     # le fût arrête le joueur
     meta['city'] = list(skyline.CITY)

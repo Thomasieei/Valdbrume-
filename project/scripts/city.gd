@@ -206,7 +206,8 @@ func _build_props() -> void:
 			mm.instance_count = cells[k].size()
 			for i in cells[k].size():
 				var p: Array = cells[k][i]
-				var xf := Transform3D(Basis(Vector3.UP, deg_to_rad(float(p[3]))), Vector3(p[1], 0.0, p[2])) * (part[1] as Transform3D)
+				var py: float = float(p[4]) if p.size() > 4 else 0.0
+				var xf := Transform3D(Basis(Vector3.UP, deg_to_rad(float(p[3]))), Vector3(p[1], py, p[2])) * (part[1] as Transform3D)
 				mm.set_instance_transform(i, xf)
 			var mmi := MultiMeshInstance3D.new()
 			mmi.multimesh = mm
@@ -226,11 +227,14 @@ func _prop_mesh(src: Mesh) -> Mesh:
 		if old is BaseMaterial3D:
 			tex = (old as BaseMaterial3D).albedo_texture
 			verre = (old as BaseMaterial3D).transparency != BaseMaterial3D.TRANSPARENCY_DISABLED or String(old.resource_name).to_lower().contains("glass")
-		var key := "verre" if verre else str(tex.get_rid().get_id()) if tex else "uni"
+		var key := "verre" if verre else str(tex.get_rid().get_id()) if tex else "couleurs"
 		if not _prop_mats.has(key):
 			var nm := StandardMaterial3D.new()
 			if verre:
 				nm.albedo_color = Color(0.08, 0.1, 0.13); nm.metallic = 0.6; nm.roughness = 0.08
+			elif tex == null:
+				# modèles faits ici : couleurs portées par les sommets
+				nm.vertex_color_use_as_albedo = true; nm.vertex_color_is_srgb = true; nm.roughness = 0.8
 			else:
 				nm.albedo_texture = tex; nm.roughness = 0.62
 				nm.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS

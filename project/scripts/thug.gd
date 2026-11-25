@@ -113,6 +113,7 @@ func touche(dmg: float, from: Vector3, kind := "") -> void:
 	if etat in [E.TOURNE, E.ATTENTE] and face_attaquant and kind != "lourd" and randf() < float(d.garde):
 		_passe(E.GARDE, 0.55)
 		vis.play("Sword_Block", 0.05, 1.6, true)
+		Sfx.joue("parade", global_position + Vector3(0, 1.3, 0))
 		recul = away * 1.4
 		Fx.choc(get_parent(), global_position + Vector3(0, 1.3, 0) - away * 0.4, 1.1, Color(0.6, 0.8, 1.0))
 		if heros.has_method("recul"): heros.recul(global_position, 3.2)
@@ -166,6 +167,7 @@ func touche(dmg: float, from: Vector3, kind := "") -> void:
 func _hit_fx(dmg: float, from: Vector3, fort: bool) -> void:
 	var p := global_position + Vector3(0, hauteur * 0.62, 0) + (from - global_position).normalized() * 0.3
 	Fx.choc(get_parent(), p, 1.2 if not fort else 1.7)
+	Sfx.joue("coup_fort" if fort else "coup", p)
 	Fx.flash(get_parent(), p, Color(1.0, 0.92, 0.8), 2.5, 4.5, 0.15)
 	Fx.nombre(get_parent(), p + Vector3(0, 0.45, 0), dmg, fort)
 	_flash_t = 0.12
@@ -185,6 +187,7 @@ func _projete(from: Vector3, force: float, dmg: float) -> void:
 	Fx.nombre(get_parent(), p + Vector3(0, 0.6, 0), dmg, true)
 	Fx.mot(get_parent(), p + Vector3(0, 1.1, 0), "PROJECTION !" if vivant else "K.-O. !", Color(1.0, 0.55, 0.3), true)
 	Fx.impact(get_tree(), 0.1, 0.3, 0.32)
+	Sfx.joue("coup_fort", p, 3.0); Sfx.joue("souffle_lourd", p, -2.0, 0.2)
 	if heros.get("shake") != null: heros.shake = 0.9
 	velocity = away * 10.5 * force / sqrt(float(d.poids)) + Vector3.UP * 6.2 * force
 	vis.play("Hit_Knockback", 0.03, 1.15, true)
@@ -201,7 +204,7 @@ func _physics_process(dt: float) -> void:
 	var hp := heros.global_position if heros else global_position
 	var to := hp - global_position; to.y = 0
 	var dist := to.length()
-	var heros_dispo: bool = heros.get("vivant") != false and not (heros.get("state") in [10, 11, 12, 13, 14])
+	var heros_dispo: bool = heros.get("vivant") != false and not (heros.get("state") in [10, 11, 12, 13, 14, 15])
 	match etat:
 		E.ATTENTE:
 			_face(hp, dt, 4.0)
@@ -267,6 +270,7 @@ func _physics_process(dt: float) -> void:
 				var n := c.get_normal()
 				if absf(n.y) < 0.5 and Vector2(velocity.x, velocity.z).length() > 3.0:
 					Fx.choc(get_parent(), c.get_position(), 2.2, Color(1.0, 0.9, 0.7), false, 0.28)
+					Sfx.joue("coup_fort", c.get_position(), 2.0, 0.2)
 					Fx.flash(get_parent(), c.get_position(), Color(1, 0.9, 0.8), 3.0, 6.0, 0.2)
 					if heros.get("shake") != null: heros.shake = 0.7
 					var hv := Vector3(velocity.x, 0, velocity.z)
@@ -278,6 +282,7 @@ func _physics_process(dt: float) -> void:
 				_passe(E.SOL)
 				vis.rotation.x = 0.0
 				vis.play("LiftAir_Fall_Impact", 0.06, 1.0, true)
+				Sfx.joue("chute", global_position, 1.0)
 				Fx.choc(get_parent(), global_position + Vector3(0, 0.06, 0), 3.2, Color(0.75, 0.7, 0.62), true, 0.5)
 				if heros.get("shake") != null: heros.shake = max(heros.shake, 0.45)
 			velocity.y -= 20.0 * dt
@@ -327,3 +332,4 @@ func _frappe() -> void:
 	_passe(E.ATTAQUE, vis.length(a[0]) / float(a[5]))
 	if jeton == null: jeton = self
 	vis.play(a[0], 0.06, float(a[5]), true)
+	Sfx.joue("souffle", global_position + Vector3(0, 1.3, 0), -6.0, 0.15)

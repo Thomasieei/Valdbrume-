@@ -33,6 +33,7 @@ func _process(dt: float) -> void:
 			light.light_energy = 3.0 * k
 			if k >= 1.0:
 				etat = "stable"; t = 0.0
+				Sfx.joue("portail", global_position + Vector3.UP * 2.0, 2.0, 0.0)
 				base_fx = Fx.spawn(self, "Mystic", "Radial_02", Transform3D(Basis(), Vector3(0, 0.05, 0)), 3.2, -1.0)
 		"stable":
 			light.light_energy = 3.0 + 0.6 * sin(t * 2.3)
@@ -43,6 +44,7 @@ func _process(dt: float) -> void:
 				etat = "brise"; t = 0.0
 				Fx.spawn(get_parent(), "Mystic", "Radial_01", Transform3D(Basis(), global_position + Vector3(0, 0.1, 0)), 4.5, 2.5)
 				Fx.flash(get_parent(), global_position + Vector3(0, 2.0, 0), Color(0.5, 0.75, 1.0), 10.0, 25.0, 0.9)
+				Sfx.joue("grondement", global_position + Vector3.UP * 2.0, 6.0, 0.0)
 				brise.emit()
 		"brise":
 			mat.set_shader_parameter("open", clampf(1.0 - t / 0.6, 0.0, 1.0) * 1.15)
