@@ -677,6 +677,7 @@ var _pk_film := {"on": true, "n": 0}
 var _pk_out := ""
 
 func _on_pk(nom: String) -> void:
+	printerr("PK ", nom, " ", player.global_position.snapped(Vector3.ONE * 0.1))
 	_pk_log.append([nom, snapped(player.global_position.x, 0.1), snapped(player.global_position.z, 0.1)])
 	if _pk_film.on and int(_pk_film.n) < 9:
 		_pk_film.n = int(_pk_film.n) + 1
@@ -685,7 +686,12 @@ func _on_pk(nom: String) -> void:
 
 func _course(cible: Vector3, max_t: float, sprint := true) -> void:
 	var t := 0.0
+	var dbg := 0.0
 	while t < max_t and Vector2(player.global_position.x - cible.x, player.global_position.z - cible.z).length() > 1.2:
+		dbg += 1.0 / 60.0
+		if dbg > 1.0:
+			dbg = 0.0
+			printerr("COURSE t=", snapped(t, 0.1), " pos=", player.global_position.snapped(Vector3.ONE * 0.1), " etat=", player.state, " v=", snapped(Vector2(player.velocity.x, player.velocity.z).length(), 0.1))
 		if player.state not in [13, 14]:
 			_face_to(cible); player.pitch = -0.12
 			player.move_input = Vector2(0, -1); player.sprint_held = sprint
@@ -695,7 +701,7 @@ func _course(cible: Vector3, max_t: float, sprint := true) -> void:
 func _test_parcours() -> void:
 	var out := ProjectSettings.globalize_path("res://").path_join("../captures")
 	DirAccess.make_dir_recursive_absolute(out)
-	print("ETAPE début du parcours")
+	printerr("ETAPE début du parcours")
 	var report := []
 	for k in quests.etat.keys(): quests.etat.erase(k)
 	life.minute = 11 * 60; life.warp(); day.force_hour = 11.0; day.apply(11.0)
@@ -705,19 +711,19 @@ func _test_parcours() -> void:
 	player.global_position = Vector3(200.5, 0.3, -118.0)
 	await _wait(20)
 	await _course(Vector3(200.5, 0, -24.0), 40.0)
-	print("ETAPE 2 voiture ", _pk_log.size())
+	printerr("ETAPE 2 voiture ", _pk_log.size())
 	# 2) vrille par-dessus une voiture garée sur le Grand Boulevard
 	player.global_position = Vector3(-170.0, 0.3, -11.3)
 	player.velocity = Vector3.ZERO
 	await _wait(20)
 	await _course(Vector3(-170.0, 0, 3.0), 8.0)
-	print("ETAPE 3 benne ", _pk_log.size())
+	printerr("ETAPE 3 benne ", _pk_log.size())
 	# 3) escalade d'une benne dans le Passage des Lanternes
 	player.global_position = Vector3(-198.0, 0.3, -100.0)
 	await _wait(20)
 	await _course(Vector3(-206.0, 0, -100.0), 5.0, false)
 	await _wait(40)
-	print("ETAPE 4 mur ", _pk_log.size())
+	printerr("ETAPE 4 mur ", _pk_log.size())
 	# 4) course sur le mur du passage
 	player.global_position = Vector3(-198.0, 0.3, -56.0)
 	await _wait(20)
@@ -727,7 +733,7 @@ func _test_parcours() -> void:
 		if player.global_position.z > -51.0: player.request_jump()
 		await get_tree().physics_frame; t += 1.0 / 60.0
 	await _course(Vector3(-199.0, 0, -30.0), 3.0)
-	print("ETAPE 5 ninja ", _pk_log.size())
+	printerr("ETAPE 5 ninja ", _pk_log.size())
 	# 5) saut de ninja, double saut, réception en roulade, sur le boulevard
 	player.global_position = Vector3(-140.0, 0.3, 1.5)
 	await _wait(20)
@@ -741,7 +747,7 @@ func _test_parcours() -> void:
 	player.move_input = Vector2.ZERO; player.sprint_held = false
 	_pk_film.on = false
 	await _wait(30)
-	print("ETAPE 6 armes ", _pk_log.size())
+	printerr("ETAPE 6 armes ", _pk_log.size())
 	# 6) armes : gros plans en main
 	player.global_position = Vector3(-120.0, 0.3, 9.0)
 	player.velocity = Vector3.ZERO
@@ -763,7 +769,7 @@ func _test_parcours() -> void:
 			await _wait(4)
 			get_viewport().get_texture().get_image().save_png(out.path_join("99_arme_%s_%s_%s.png" % [spec[0], spec[1].to_lower(), vue[1]]))
 		player.vis.anim.play()
-	print("ETAPE 7 fleches ", _pk_log.size())
+	printerr("ETAPE 7 fleches ", _pk_log.size())
 	# 7) tir à l'arc sur une façade : flèches en vol puis plantées
 	player.vis.set_weapon("arc"); player.style_i = 3
 	player.cam.current = true; ui.visible = true
