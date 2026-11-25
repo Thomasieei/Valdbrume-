@@ -47,7 +47,7 @@ func setup(p_life: Node, p_player: Node3D) -> void:
 		if not etat[id].fini and not etat[id].get("echec", false): suivie = id
 	# première mission : donnée dès l'arrivée en ville
 	if not etat.has("balafre"):
-		donne.call_deferred("balafre", "Nadia, la fleuriste, te parle d'une bande qui rackette les commerçants. Trois types, menés par le Balafré.")
+		donne.call_deferred("balafre", "Nadia, la policière du quartier, te parle d'une bande qui rackette les commerçants : trois types, menés par le Balafré. Elle n'a pas de preuves ; toi, tu as tes poings.")
 	# les destins déjà accomplis restent visibles
 	if "chasseur novice" in life.mem.hugo.souvenirs: life.npcs.hugo.devient_chasseur()
 
