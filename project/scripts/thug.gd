@@ -76,9 +76,9 @@ func _barre() -> void:
 	barre.text = "%s\n%s" % [d.nom, s]
 
 func commence() -> void:
-	if etat == E.ATTENTE: _set(E.TOURNE)
+	if etat == E.ATTENTE: _passe(E.TOURNE)
 
-func _set(e: int, l := 0.0) -> void:
+func _passe(e: int, l := 0.0) -> void:
 	if jeton == self and e not in [E.APPROCHE, E.ARMEMENT, E.ATTAQUE]:
 		jeton = null; _jeton_cd = randf_range(0.5, 1.1)
 	etat = e; t = 0.0; duree = l
@@ -108,7 +108,7 @@ func touche(dmg: float, from: Vector3, kind := "") -> void:
 	if etat in [E.SOL, E.RELEVE]: return
 	# parade : en garde, face à l'attaquant, sur un coup léger
 	if etat in [E.TOURNE, E.ATTENTE] and face_attaquant and kind != "lourd" and randf() < float(d.garde):
-		_set(E.GARDE, 0.55)
+		_passe(E.GARDE, 0.55)
 		vis.play("Sword_Block", 0.05, 1.6, true)
 		recul = away * 1.4
 		Fx.spawn(get_parent(), "Pure", "Radial_01", Transform3D(Basis(), global_position + Vector3(0, 1.3, 0) - away * 0.4), 0.5, 1.0)
@@ -117,7 +117,7 @@ func touche(dmg: float, from: Vector3, kind := "") -> void:
 		return
 	# esquive (agile) : pas de côté avant d'être touché
 	if etat == E.TOURNE and coups_recus == 0 and randf() < float(d.esquive):
-		_set(E.ESQUIVE, 0.75)
+		_passe(E.ESQUIVE, 0.75)
 		var side := away.cross(Vector3.UP) * (1.0 if randf() < 0.5 else -1.0)
 		recul = side * 5.0 + away * 1.5
 		vis.play("Dodge_Left" if side.dot(Basis(Vector3.UP, vis.rotation.y) * Vector3.RIGHT) < 0 else "Dodge_Right", 0.05, 1.3, true)
@@ -141,7 +141,7 @@ func touche(dmg: float, from: Vector3, kind := "") -> void:
 	elif cote > 0.45: anim = "Hit_Shoulder_R"
 	elif cote < -0.45: anim = "Hit_Shoulder_L"
 	recul = away * (4.2 if kind == "lourd" else 2.8) / sqrt(float(d.poids))
-	_set(E.TOUCHE, vis.length(anim) * 0.85 + 0.08)
+	_passe(E.TOUCHE, vis.length(anim) * 0.85 + 0.08)
 	vis.play(anim, 0.04, 1.0, true)
 	_face(from, 1.0, 60.0)
 
@@ -168,7 +168,7 @@ func _projete(from: Vector3, force: float, dmg: float) -> void:
 	if heros.get("shake") != null: heros.shake = 0.9
 	velocity = away * 10.5 * force / sqrt(float(d.poids)) + Vector3.UP * 6.2 * force
 	vis.play("Hit_Knockback", 0.03, 1.15, true)
-	_set(E.VOL)
+	_passe(E.VOL)
 	vol_t = 0.0
 
 # ------------------------------------------------------------------ boucle
@@ -198,15 +198,15 @@ func _physics_process(dt: float) -> void:
 			else: vis.play("Walk_Fwd_Loop" if vloc.z > 0 else "Walk_Bwd_Loop", 0.25)
 			if jeton == null and _jeton_cd <= 0.0 and heros_dispo and t > 0.8:
 				jeton = self; chaine_i = 0
-				_set(E.APPROCHE)
+				_passe(E.APPROCHE)
 		E.APPROCHE:
 			_face(hp, dt)
 			var portee: float = d.chaine[0][4]
-			if not heros_dispo: _set(E.TOURNE)
+			if not heros_dispo: _passe(E.TOURNE)
 			elif dist > portee - 0.2:
 				v = to.normalized() * float(d.vitesse) * 1.35
 				vis.play("Jog_Fwd_Loop", 0.2)
-				if t > 4.0: _set(E.TOURNE)
+				if t > 4.0: _passe(E.TOURNE)
 			else:
 				_arme()
 		E.ARMEMENT:
@@ -232,9 +232,9 @@ func _physics_process(dt: float) -> void:
 				if chaine_i < d.chaine.size() and heros_dispo and dist < float(d.chaine[chaine_i][4]) + 1.2:
 					_frappe()
 				else:
-					_set(E.TOURNE)
+					_passe(E.TOURNE)
 		E.TOUCHE, E.GARDE, E.ESQUIVE:
-			if t > duree: _set(E.TOURNE)
+			if t > duree: _passe(E.TOURNE)
 		E.VOL:
 			vol_t += dt
 			if vis.current == "Hit_Knockback" and vol_t > 0.3: vis.play("LiftAir_Fall_Air_Loop", 0.15)
@@ -254,7 +254,7 @@ func _physics_process(dt: float) -> void:
 					pv -= 6.0; _barre()
 					if pv <= 0.0: pv = 0.0; vivant = false
 			if is_on_floor() and vol_t > 0.15:
-				_set(E.SOL)
+				_passe(E.SOL)
 				vis.rotation.x = 0.0
 				vis.play("LiftAir_Fall_Impact", 0.06, 1.0, true)
 				Fx.spawn(get_parent(), "Pure", "Radial_02", Transform3D(Basis(), global_position + Vector3(0, 0.05, 0)), 1.2, 1.4)
@@ -272,12 +272,12 @@ func _physics_process(dt: float) -> void:
 					remove_from_group("ennemis"); collision_layer = 0
 					ko.emit(self)
 			elif t > 1.3:
-				_set(E.RELEVE, vis.length("LayToIdle") * 0.95)
+				_passe(E.RELEVE, vis.length("LayToIdle") * 0.95)
 				vis.play("LayToIdle", 0.12, 1.15, true)
 				invuln = duree
 		E.RELEVE:
 			if t > duree:
-				_set(E.TOURNE); invuln = 0.3
+				_passe(E.TOURNE); invuln = 0.3
 		E.KO:
 			var hv3 := Vector3(velocity.x, 0, velocity.z).move_toward(Vector3.ZERO, 14.0 * dt)
 			velocity.x = hv3.x; velocity.z = hv3.z
@@ -292,7 +292,7 @@ func _anim_lod() -> void:
 
 func _arme() -> void:
 	var a: Array = d.chaine[chaine_i]
-	_set(E.ARMEMENT, 0.32 if chaine_i == 0 else 0.0)
+	_passe(E.ARMEMENT, 0.32 if chaine_i == 0 else 0.0)
 	if chaine_i == 0:
 		# éclat rouge : le joueur voit venir le coup et peut esquiver
 		var p := global_position + Vector3(0, hauteur * 0.9, 0) + _avant() * 0.25
@@ -303,6 +303,6 @@ func _arme() -> void:
 func _frappe() -> void:
 	var a: Array = d.chaine[chaine_i]
 	coup_fait = false
-	_set(E.ATTAQUE, vis.length(a[0]) / float(a[5]))
+	_passe(E.ATTAQUE, vis.length(a[0]) / float(a[5]))
 	if jeton == null: jeton = self
 	vis.play(a[0], 0.06, float(a[5]), true)
