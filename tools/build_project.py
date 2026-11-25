@@ -244,6 +244,7 @@ def main():
     meta['echelles'] = rooftops.ECHELLES
     meta['anneaux'] = rooftops.ANNEAUX
     meta['receptacles'] = rooftops.RECEPTACLES
+    meta['anneaux_bourse'] = props.ANNEAUX_BOURSE
     for (x, z, _r) in meta['lampes']:
         meta['boxes'].append([x, 1.6, z, 0.3, 3.2, 0.3])     # le fût arrête le joueur
     meta['city'] = list(skyline.CITY)

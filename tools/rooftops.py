@@ -1,9 +1,10 @@
 """Parcours sur les toits du Passage des Lanternes (tracé à la main).
 
-Montée par une échelle de secours sur la façade ouest, escalade de caisses
-jusqu'au toit voisin plus haut (16 m), descente sur un toit plus bas, grand saut
-par-dessus la ruelle avec rattrapage au parapet d'en face, et pour finir le
-« saut de la foi » dans un tas de sacs, au fond de la ruelle.
+Montée par une échelle de secours sur la façade ouest, bond sur une plateforme
+d'échafaudage puis course sur le mur jusqu'au toit voisin plus haut (16 m), salto
+pour redescendre sur un toit plus bas, grand saut acrobatique par-dessus la ruelle,
+passage des parapets en pleine course et, pour finir, le « saut de la foi » dans un
+tas de sacs, au fond de la ruelle.
 
 Repères (layout.py) : façade ouest de la ruelle x = -203, façade est x = -197 ;
 toits à 13 m : ouest z -104..-92 et -82..-70, est z -82..-58 ; toit à 16 m :
@@ -18,7 +19,7 @@ ECHELLES = [
 ]
 # objets posés sur les toits : [type, x, y, z, rotation]
 OBJETS_TOITS = [
-    ['caisses2', -209.5, 13.0, -93.0, 90],      # marches vers le toit à 16 m
+    ['echafaudage', -209.5, 13.0, -94.7, 0],    # plateforme d'échafaudage : marche vers le toit à 16 m
     ['caisse', -213.0, 13.0, -100.5, 0],
     ['caisse', -205.5, 16.0, -86.0, 0],          # obstacle à franchir sur le toit haut
     ['caisse', -212.0, 13.0, -75.0, 0],
@@ -34,13 +35,13 @@ OBJETS_TOITS = [
 RECEPTACLES = [[-199.6, 0.95, -64.6]]
 # anneaux du défi chronométré : [x, y, z] — départ au pied de l'échelle, arrivée dans les sacs
 ANNEAUX = [
-    [-201.6, 1.2, -97.5],      # départ
-    [-207.5, 14.3, -98.0],     # haut de l'échelle
-    [-210.0, 17.3, -87.0],     # toit haut
+    [-201.6, 1.2, -97.5],      # départ, au pied de l'échelle
+    [-206.8, 14.2, -99.2],     # haut de l'échelle
+    [-209.6, 17.2, -89.0],     # toit haut (16 m)
     [-210.0, 14.3, -76.0],     # toit bas, avant le grand saut
     [-190.0, 14.3, -77.0],     # de l'autre côté de la ruelle
-    [-190.0, 14.3, -64.0],     # bord du toit, au-dessus des sacs
-    [-199.5, 1.6, -64.6],      # arrivée
+    [-193.0, 14.2, -68.0],     # dernier toit, vers le bord
+    [-199.5, 1.6, -64.6],      # arrivée : dans les sacs
 ]
 
 

@@ -191,6 +191,25 @@ func _draw() -> void:
 		var fs := int(44 * pop)
 		draw_string(font, Vector2(w.x * 0.66 + 2, w.y * 0.40 + 3), "%d COUPS" % player.combo_n, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.6 * k))
 		draw_string(font, Vector2(w.x * 0.66, w.y * 0.40), "%d COUPS" % player.combo_n, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1.0, 0.82, 0.35, k))
+	# figure de free-run réussie : nom, enchaînement, jauge d'élan
+	if player.fig_aff < 1.6 and player.fig_nom != "":
+		var k2 := clampf(1.0 - (player.fig_aff - 1.1) / 0.5, 0.0, 1.0)
+		var pop2 := 1.0 + 0.4 * clampf(1.0 - player.fig_aff * 7.0, 0.0, 1.0)
+		var fs2 := int(40 * pop2)
+		var t2: String = String(player.fig_nom).to_upper()
+		var lw := font.get_string_size(t2, HORIZONTAL_ALIGNMENT_LEFT, -1, fs2).x
+		var y2 := w.y * 0.27
+		draw_string(font, Vector2((w.x - lw) * 0.5 + 3, y2 + 3), t2, HORIZONTAL_ALIGNMENT_LEFT, -1, fs2, Color(0, 0, 0, 0.55 * k2))
+		draw_string(font, Vector2((w.x - lw) * 0.5, y2), t2, HORIZONTAL_ALIGNMENT_LEFT, -1, fs2, Color(1.0, 0.93, 0.7, k2))
+		if player.fig_chaine >= 2:
+			var t3 := "ENCHAÎNEMENT x%d" % player.fig_chaine
+			var lw3 := font.get_string_size(t3, HORIZONTAL_ALIGNMENT_LEFT, -1, 24).x
+			draw_string(font, Vector2((w.x - lw3) * 0.5 + 2, y2 + 36), t3, HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(0, 0, 0, 0.5 * k2))
+			draw_string(font, Vector2((w.x - lw3) * 0.5, y2 + 34), t3, HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(0.45, 0.85, 1.0, k2))
+	if player.elan > 0.02:
+		var bw: float = 300.0 * player.elan
+		draw_rect(Rect2(22, 44, 300, 6), Color(0, 0, 0, 0.45))
+		draw_rect(Rect2(23, 45, bw - 2, 4), Color(0.4, 0.8, 1.0).lerp(Color(1.0, 0.85, 0.3), player.elan))
 	# points de vie
 	var hp: float = player.pv / player.pv_max
 	draw_rect(Rect2(22, 22, 300, 18), Color(0, 0, 0, 0.55))

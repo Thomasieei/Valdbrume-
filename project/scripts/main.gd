@@ -13,6 +13,7 @@ var sun: DirectionalLight3D
 var life
 var quests: Node
 var defi: Node
+var defi_bourse: Node
 var day: Node
 
 var _hb := 0.0
@@ -57,6 +58,13 @@ func _ready() -> void:
 	add_child(defi)
 	defi.setup(life, player, city.meta.get("anneaux", []))
 	defi.fini.connect(func(t: float, rec: bool): quests.annonce.emit("Défi des toits", "Temps : %s%s" % [defi._fmt(t), " — nouveau record !" if rec else ""]))
+	defi_bourse = Node.new(); defi_bourse.name = "DefiBourse"
+	defi_bourse.set_script(load("res://scripts/defi.gd"))
+	add_child(defi_bourse)
+	defi_bourse.setup(life, player, city.meta.get("anneaux_bourse", []), "bourse", "Défi du chantier", -1.0)
+	defi_bourse.fini.connect(func(t: float, rec: bool): quests.annonce.emit("Défi du chantier", "Temps : %s%s" % [defi_bourse._fmt(t), " — nouveau record !" if rec else ""]))
+	# figures de free-run : petit son de réussite, plus fort quand on enchaîne
+	player.figure.connect(func(_n: String, c: int): Sfx.joue("parade" if c < 3 else "degaine", player.global_position + Vector3.UP, -10.0 + minf(c, 6) * 1.2, 0.05))
 	Fx.prewarm(self, player.cam)
 	ui = CanvasLayer.new()
 	add_child(ui)
@@ -77,11 +85,15 @@ func _ready() -> void:
 	elif "--traverse" in args: _traverse.call_deferred()
 	elif "--vie" in args: _simulate_life.call_deferred()
 	elif "--diag-anim" in args: _diag_anim.call_deferred()
+	elif "--poses" in args: _diag_poses.call_deferred()
 	elif "--combat" in args: _test_combat.call_deferred()
 	elif "--mission" in args: _test_mission.call_deferred()
 	elif "--parcours" in args: _test_parcours.call_deferred()
 	elif "--toits" in args: _test_toits.call_deferred()
 	elif "--plongeon" in args: _test_plongeon.call_deferred()
+	elif "--freerun" in args: _test_freerun.call_deferred()
+	elif "--figures" in args: _test_figures.call_deferred()
+	elif "--vue" in args: _vue.call_deferred()
 
 ## K.-O. : on se réveille à la pharmacie, soigné par Inès
 func _ko() -> void:
@@ -314,6 +326,30 @@ func _simulate_life() -> void:
 	var f := FileAccess.open(out.path_join("vie_journee.json"), FileAccess.WRITE)
 	f.store_string(JSON.stringify(res, "  ")); f.close()
 	print("VIE bloques=", res.bloques.size(), " evenements=", life.log_lines.size())
+	get_tree().quit()
+
+## planches de poses : chaque animation figée à 6 instants, vue de côté
+func _diag_poses() -> void:
+	var out := ProjectSettings.globalize_path("res://").path_join("../captures")
+	DirAccess.make_dir_recursive_absolute(out)
+	day.force_hour = 12.0; day.apply(12.0)
+	player.global_position = Vector3(40, 0.3, 34)
+	var v := CharacterVisual.new(); add_child(v); v.setup("heros")
+	v.global_position = Vector3(0, 0.0, 34)
+	var cam := Camera3D.new(); add_child(cam); cam.fov = 50.0
+	cam.global_position = Vector3(0, 1.1, 38.2); cam.look_at(Vector3(0, 1.0, 34)); cam.current = true
+	ui.visible = false
+	var noms := OS.get_environment("POSES").split(",") if OS.get_environment("POSES") != "" else PackedStringArray(["Roll", "BackFlip", "JogToFlip", "NinjaJump_Idle_Loop", "Slide_Loop", "DoubleJump"])
+	await _wait(10)
+	for n in noms:
+		var imgs := []
+		var L := v.length(n)
+		for i in 6:
+			v.play(n, 0.0, 0.0, true)
+			v.anim.seek(L * (0.06 + i * 0.176), true)
+			await _wait(2)
+			imgs.append(_grab())
+		_planche(out, "pose_" + n, imgs)
 	get_tree().quit()
 
 func _diag_anim() -> void:
@@ -699,10 +735,12 @@ var _pk_out := ""
 func _on_pk(nom: String) -> void:
 	printerr("PK ", nom, " ", player.global_position.snapped(Vector3.ONE * 0.1))
 	_pk_log.append([nom, snapped(player.global_position.x, 0.1), snapped(player.global_position.z, 0.1)])
-	if _pk_film.on and int(_pk_film.n) < 9:
+	if _pk_film.on and int(_pk_film.n) < int(_pk_film.get("max", 9)):
 		_pk_film.n = int(_pk_film.n) + 1
 		var fwd := Basis(Vector3.UP, player.vis.rotation.y) * Vector3(0, 0, 1)
-		_filme(_pk_out, "9%d_parkour_%s" % [int(_pk_film.n), nom.to_lower()], player, fwd, [0, 5, 10, 16, 23, 32])
+		if player.fig.has("fwd"): fwd = player.fig.fwd
+		var pas: Array = [0, 7, 14, 21, 29, 40] if not player.fig.is_empty() else [0, 5, 10, 16, 23, 32]
+		_filme(_pk_out, "f%02d_%s" % [int(_pk_film.n), nom.to_lower().replace(" ", "_")], player, fwd, pas)
 
 func _course(cible: Vector3, max_t: float, sprint := true) -> void:
 	var t := 0.0
@@ -717,6 +755,107 @@ func _course(cible: Vector3, max_t: float, sprint := true) -> void:
 			player.move_input = Vector2(0, -1); player.sprint_held = sprint
 		await get_tree().physics_frame; t += 1.0 / 60.0
 	player.move_input = Vector2.ZERO; player.sprint_held = false
+
+## images fixes : VUES="nom:x,y,z:cx,cy,cz;…" (position de la caméra, point visé)
+func _vue() -> void:
+	var out := ProjectSettings.globalize_path("res://").path_join("../captures")
+	DirAccess.make_dir_recursive_absolute(out)
+	day.force_hour = 13.0; day.apply(13.0)
+	ui.visible = false
+	player.global_position = Vector3(0, -50, 0)
+	var cam := Camera3D.new(); add_child(cam); cam.fov = 62.0; cam.far = 900.0
+	for v in OS.get_environment("VUES").split(";"):
+		var a := v.split(":")
+		var p := a[1].split_floats(","); var c := a[2].split_floats(",")
+		cam.global_position = Vector3(p[0], p[1], p[2]); cam.look_at(Vector3(c[0], c[1], c[2])); cam.current = true
+		await _wait(8)
+		get_viewport().get_texture().get_image().save_png(out.path_join("v_" + a[0] + ".png"))
+	get_tree().quit()
+
+## galerie : chaque figure jouée au-dessus d'une barrière, vue de côté (8 images)
+func _test_figures() -> void:
+	var out := ProjectSettings.globalize_path("res://").path_join("../captures")
+	DirAccess.make_dir_recursive_absolute(out)
+	day.force_hour = 12.0; day.apply(12.0)
+	ui.visible = false
+	var corps := StaticBody3D.new(); add_child(corps)
+	var cs := CollisionShape3D.new(); var bx := BoxShape3D.new(); bx.size = Vector3(2.0, 1.0, 0.6); cs.shape = bx; corps.add_child(cs)
+	var mi := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = bx.size; mi.mesh = bm; corps.add_child(mi)
+	corps.global_position = Vector3(0, 0.5, 30.0)
+	var cam := Camera3D.new(); add_child(cam); cam.fov = 55.0
+	cam.global_position = Vector3(7.5, 1.6, 30.0); cam.look_at(Vector3(0, 1.3, 30.0)); cam.current = true
+	var noms := OS.get_environment("FIGS").split(",") if OS.get_environment("FIGS") != "" else PackedStringArray(player.FIGURES.keys())
+	for nom in noms:
+		player.global_position = Vector3(0, 0.0, 33.2); player.velocity = Vector3.ZERO
+		player.state = 0; player.fig = {}
+		await _wait(4)
+		var p1 := Vector3(0, 0.0, 26.8)
+		var pic := 1.0 + (0.18 if nom == "Glissade sur capot" else 0.8)
+		var opts := {}
+		if nom == "Salto arrière": opts = {"mur": Vector3(0, 0, 30.5), "dos": true}; p1 = Vector3(0, 0, 33.0); pic = 2.7
+		if nom == "Montée éclair": opts = {"mur": Vector3(0, 0, 30.6)}; p1 = Vector3(0, 1.0, 29.9); pic = 1.15
+		var dur := 0.95 if nom == "Salto arrière" else (0.5 if nom == "Montée éclair" else 0.72)
+		player._fig_start(nom, player.global_position, p1, pic, dur, 8.0, opts)
+		var imgs := []
+		var n_img := 8
+		for i in n_img:
+			var cible := dur * float(i) / float(n_img - 1)
+			while player.state == 13 and player.state_t < cible - 0.001: await get_tree().physics_frame
+			imgs.append(_grab())
+		var sheet := Image.create(480 * 4, 270 * 2, false, Image.FORMAT_RGB8)
+		for i in imgs.size():
+			var im: Image = imgs[i]; im.convert(Image.FORMAT_RGB8); im.resize(480, 270)
+			sheet.blit_rect(im, Rect2i(0, 0, 480, 270), Vector2i((i % 4) * 480, (i / 4) * 270))
+		sheet.save_png(out.path_join("g_" + nom.replace(" ", "_") + ".png"))
+		printerr("FIGURE ", nom)
+		await _wait(30)
+	get_tree().quit()
+
+func _test_freerun() -> void:
+	var out := ProjectSettings.globalize_path("res://").path_join("../captures")
+	DirAccess.make_dir_recursive_absolute(out)
+	for k in quests.etat.keys(): quests.etat.erase(k)
+	life.minute = 11 * 60; life.warp(); day.force_hour = 11.0; day.apply(11.0)
+	_pk_out = out; _pk_film = {"on": true, "n": 0, "max": int(OS.get_environment("FILMS")) if OS.get_environment("FILMS") != "" else 14}
+	player.parkour.connect(_on_pk)
+	var seg := OS.get_environment("SEG")
+	if seg == "" or "1" in seg:
+		printerr("ETAPE chantier")
+		player.global_position = Vector3(202.0, 0.3, -117.0); player.velocity = Vector3.ZERO
+		defi_bourse.fini.connect(func(t: float, _r: bool): printerr("DEFI chantier ", t))
+		await _wait(20)
+		await _course(Vector3(202.0, 0, -14.0), 30.0)
+	if seg == "" or "2" in seg:
+		printerr("ETAPE voiture")
+		player.global_position = Vector3(-170.0, 0.3, -14.0); player.velocity = Vector3.ZERO
+		await _wait(20)
+		await _course(Vector3(-170.0, 0, 3.0), 6.0)
+	if seg == "" or "3" in seg:
+		printerr("ETAPE toits")
+		player.global_position = Vector3(-215.0, 13.3, -76.3); player.velocity = Vector3.ZERO
+		await _wait(20)
+		await _course(Vector3(-186.0, 0, -76.3), 8.0)
+	if seg == "" or "4" in seg:
+		printerr("ETAPE mur")
+		player.global_position = Vector3(-197.6, 0.3, -110.0); player.velocity = Vector3.ZERO
+		await _wait(20)
+		await _course(Vector3(-210.0, 0, -110.0), 3.0)
+		await _wait(60)
+	if seg == "" or "5" in seg:
+		printerr("ETAPE air")
+		player.global_position = Vector3(-140.0, 0.3, 1.5); player.velocity = Vector3.ZERO
+		await _wait(20)
+		var t := 0.0
+		var saute := 0
+		while t < 4.0:
+			_face_to(Vector3(-100.0, 0, 1.5)); player.move_input = Vector2(0, -1); player.sprint_held = true
+			if t > 1.4 and saute == 0: player.request_jump(); saute = 1
+			if t > 1.62 and saute == 1: player.request_jump(); saute = 2
+			await get_tree().physics_frame; t += 1.0 / 60.0
+		player.move_input = Vector2.ZERO; player.sprint_held = false
+	await _wait(60)
+	print("FREERUN ", JSON.stringify(_pk_log), " elan=", player.elan)
+	get_tree().quit()
 
 func _test_parcours() -> void:
 	var out := ProjectSettings.globalize_path("res://").path_join("../captures")
@@ -854,7 +993,7 @@ func _test_toits() -> void:
 	DirAccess.make_dir_recursive_absolute(out)
 	for k in quests.etat.keys(): quests.etat.erase(k)
 	life.minute = 16 * 60; life.warp(); day.force_hour = 16.0; day.apply(16.0)
-	_pk_out = out; _pk_film = {"on": true, "n": 0}
+	_pk_out = out; _pk_film = {"on": true, "n": 0, "max": int(OS.get_environment("FILMS")) if OS.get_environment("FILMS") != "" else 14}
 	player.parkour.connect(_on_pk)
 	var res := {"etapes": []}
 	defi.fini.connect(func(t: float, _r: bool): res["defi_s"] = t)
@@ -868,8 +1007,8 @@ func _test_toits() -> void:
 		await get_tree().physics_frame; t += 1.0 / 60.0
 	res.etapes.append(["echelle", player.global_position.snapped(Vector3.ONE * 0.1)])
 	printerr("ETAPE caisses ", player.global_position)
-	await _course(Vector3(-209.5, 0, -96.0), 4.0, false)
-	await _course(Vector3(-209.5, 0, -88.0), 9.0, false)
+	await _course(Vector3(-209.5, 0, -101.5), 4.0, false)
+	await _course(Vector3(-209.5, 0, -88.0), 9.0, true)
 	res.etapes.append(["toit_haut", player.global_position.snapped(Vector3.ONE * 0.1)])
 	printerr("ETAPE descente ", player.global_position)
 	await _course(Vector3(-209.5, 0, -74.0), 6.0, true)

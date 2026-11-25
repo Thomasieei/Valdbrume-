@@ -9,6 +9,8 @@ const LIBS := {"ual1": "res://assets/characters/anims/UAL1.glb", "ual2": "res://
 	"pk1": "res://assets/characters/anims/PK_Vault.glb", "pk2": "res://assets/characters/anims/PK_Flip.glb", "pk3": "res://assets/characters/anims/PK_NinjaDouble.glb"}
 ## noms simples pour les animations de parkour fournies à part
 const RENOMS := {"Move_-_vault": "PK_Vault", "Move_-_jog_into_a_flip": "PK_Flip", "Jump_-_ninja_double": "PK_NinjaDouble"}
+## figures de parkour jouées « sur place » (voir plus bas)
+const EN_PLACE := ["PK_Flip", "PK_Vault", "PK_NinjaDouble", "JogToFlip", "BackFlip", "SafetyVault", "DoubleJump"]
 static var libs := {}            # nom -> AnimationLibrary nettoyée
 static var index := {}           # nom d'animation -> "lib/nom"
 static var courbes := {}         # parkour : avance du corps (m) échantillonnée à 30 i/s
@@ -22,6 +24,12 @@ static func ensure() -> void:
 		var lib := AnimationLibrary.new()
 		for n in src.get_animation_list():
 			var a: Animation = src.get_animation(n).duplicate(true)
+			# pistes des animations fournies à part : « Nom/Scene/Armature/Skeleton3D:os »
+			# → même chemin que la bibliothèque universelle (sinon rien ne bouge)
+			for t in a.get_track_count():
+				var tp := String(a.track_get_path(t))
+				var k := tp.find("Armature/Skeleton3D:")
+				if k > 0: a.track_set_path(t, NodePath(tp.substr(k)))
 			for t in range(a.get_track_count() - 1, -1, -1):
 				var tt := a.track_get_type(t)
 				var p := String(a.track_get_path(t))
@@ -48,6 +56,20 @@ static func ensure() -> void:
 			lib.add_animation(n, a)
 			for alias in [String(n), String(n) + "_Loop", String(RENOMS.get(String(n), String(n)))]:
 				if not index.has(alias): index[alias] = key + "/" + String(n)
+		# versions « sur place » des figures : le bassin ne monte ni n'avance, c'est la
+		# trajectoire calculée en jeu qui porte le corps (hauteur et longueur réglées
+		# sur l'obstacle et la vitesse) ; les rotations (salto, vrille) restent
+		for n2 in lib.get_animation_list():
+			var nom := String(RENOMS.get(String(n2), String(n2)))
+			if not nom in EN_PLACE: continue
+			var ep: Animation = lib.get_animation(n2).duplicate(true)
+			for t in ep.get_track_count():
+				if ep.track_get_type(t) == Animation.TYPE_POSITION_3D and String(ep.track_get_path(t)).ends_with(":pelvis") and ep.track_get_key_count(t) > 0:
+					var v0: Vector3 = ep.track_get_key_value(t, 0)
+					for k in ep.track_get_key_count(t): ep.track_set_key_value(t, k, v0)
+			ep.loop_mode = Animation.LOOP_NONE
+			lib.add_animation(String(n2) + "_EP", ep)
+			index[nom + "_EP"] = key + "/" + String(n2) + "_EP"
 		libs[key] = lib
 
 static func attach(ap: AnimationPlayer) -> void:

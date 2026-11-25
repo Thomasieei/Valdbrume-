@@ -1,5 +1,6 @@
-## Défi chronométré « Les toits des Lanternes » : passer dans chaque anneau,
-## du pied de l'échelle jusqu'au saut final dans les sacs. Le record est gardé.
+## Défi chronométré : passer dans chaque anneau, du départ à l'arrivée. Le record
+## est gardé. « Les toits des Lanternes » (de l'échelle au saut dans les sacs) et
+## « Le chantier de la Bourse » (ligne d'obstacles à prendre en pleine course).
 extends Node
 
 signal fini(temps: float, record: bool)
@@ -7,6 +8,9 @@ var life: Node
 var player: Node3D
 var anneaux: Array = []          # positions
 var noeuds: Array = []           # anneaux visibles
+var id := "toits"
+var nom := "Défi des toits"
+var sol := 2.0                   # retombé au sol sous cette hauteur = abandon (-1 : jamais)
 var actif := false
 var suivant := 0
 var temps := 0.0
@@ -15,8 +19,8 @@ var mat_off := StandardMaterial3D.new()
 var mat_on := StandardMaterial3D.new()
 var mat_fait := StandardMaterial3D.new()
 
-func setup(p_life: Node, p_player: Node3D, pts: Array) -> void:
-	life = p_life; player = p_player
+func setup(p_life: Node, p_player: Node3D, pts: Array, p_id := "toits", p_nom := "Défi des toits", p_sol := 2.0) -> void:
+	life = p_life; player = p_player; id = p_id; nom = p_nom; sol = p_sol
 	for m in [mat_off, mat_on, mat_fait]:
 		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -45,7 +49,7 @@ func setup(p_life: Node, p_player: Node3D, pts: Array) -> void:
 	_reset()
 
 func record() -> float:
-	return float(life.mem.get("_defis", {}).get("toits", 0.0))
+	return float(life.mem.get("_defis", {}).get(id, 0.0))
 
 func _reset() -> void:
 	actif = false; suivant = 0; temps = 0.0
@@ -72,7 +76,7 @@ func _process(dt: float) -> void:
 	temps += dt
 	var r := record()
 	lab.visible = true
-	lab.text = "Défi des toits   %s   (%d / %d)%s" % [_fmt(temps), suivant, anneaux.size() - 1, "   record %s" % _fmt(r) if r > 0.0 else ""]
+	lab.text = "%s   %s   (%d / %d)%s" % [nom, _fmt(temps), suivant, anneaux.size() - 1, "   record %s" % _fmt(r) if r > 0.0 else ""]
 	if pp.distance_to(anneaux[suivant]) < 1.9:
 		noeuds[suivant].material_override = mat_fait
 		Sfx.joue("parade", anneaux[suivant], 0.0, 0.0)
@@ -81,14 +85,15 @@ func _process(dt: float) -> void:
 			var nouveau := r <= 0.0 or temps < r
 			if nouveau:
 				if not life.mem.has("_defis"): life.mem["_defis"] = {}
-				life.mem["_defis"]["toits"] = temps
+				life.mem["_defis"][id] = temps
 				life._save()
 			fini.emit(temps, nouveau)
 			_reset()
 		else:
 			noeuds[suivant].material_override = mat_on
 	# abandon : retombé au sol loin de l'arrivée, ou trop long
-	if temps > 180.0 or (suivant >= 2 and suivant < anneaux.size() - 1 and player.global_position.y < 2.0 and player.is_on_floor()):
+	var perdu: bool = sol >= 0.0 and suivant >= 2 and suivant < anneaux.size() - 1 and player.global_position.y < sol and player.is_on_floor()
+	if temps > 180.0 or perdu or pp.distance_to(anneaux[mini(suivant, anneaux.size() - 1)]) > 40.0:
 		_reset()
 
 func _fmt(s: float) -> String:

@@ -37,6 +37,12 @@ TYPES = {
     'cheminee':  (None, [[0, 0.85, 0, 1.0, 1.7, 0.7]]),
     'ventilation': (None, [[0, 0.45, 0, 0.6, 0.9, 0.6]]),
     'clim_toit': (None, [[0, 0.6, 0, 1.6, 1.2, 1.1]]),
+    # chantier de free-run (Passage de la Bourse)
+    'muret':     (None, [[0, 0.575, 0, 3.6, 1.15, 0.45]]),
+    'echafaudage': (None, [[0, 0.725, 0, 2.6, 1.45, 5.0]]),
+    'palissade': (None, [[0, 1.1, 0, 4.0, 2.2, 0.22]]),
+    'barriere':  (None, [[0, 0.55, 0, 2.1, 1.1, 0.14]]),
+    'tuyaux':    (None, [[0, 0.46, 0, 2.6, 0.92, 1.9]]),
 }
 
 # ------------------------------------------------------------------ modèles faits ici
@@ -239,6 +245,101 @@ def roof_ac():
     return trimesh.util.concatenate(parts)
 
 
+def concrete_wall():
+    """muret en blocs de béton, chaperon, bande de signalisation et tags"""
+    rng = np.random.default_rng(5)
+    parts = []
+    for row in range(5):
+        off = 0.0 if row % 2 == 0 else 0.2
+        x = -1.8 + off
+        while x < 1.8 - 0.01:
+            w = min(0.4, 1.8 - x)
+            g = int(150 + rng.integers(-10, 10))
+            parts.append(_box([x + w / 2, 0.11 + row * 0.2, 0], [w - 0.012, 0.19, 0.44], [g, g - 2, g - 6, 255]))
+            x += w
+    parts.append(_box([0, 1.1, 0], [3.66, 0.1, 0.5], [176, 172, 164, 255]))
+    for i, c in enumerate([[220, 60, 40, 255], [240, 236, 228, 255]] * 4):
+        parts.append(_box([-1.575 + i * 0.45, 0.82, 0.226], [0.45, 0.12, 0.012], c))
+    # tag : trois traits de couleur vive sur une face
+    for (x, y, w, h, c) in [(-0.9, 0.45, 0.9, 0.18, [60, 170, 210, 255]), (-0.6, 0.3, 0.5, 0.1, [250, 200, 40, 255]), (0.7, 0.5, 0.7, 0.22, [200, 60, 160, 255])]:
+        parts.append(_box([x, y, -0.226], [w, h, 0.01], c))
+    return trimesh.util.concatenate(parts)
+
+
+def scaffold():
+    """plateforme d'échafaudage : tubes d'acier, plancher de bois, plinthes, croisillons"""
+    tube, bois, bois_f, jaune = [120, 132, 146, 255], [176, 136, 84, 255], [146, 108, 62, 255], [232, 186, 40, 255]
+    W, H, L = 2.6, 1.45, 5.0
+    parts = []
+    for sx in (-1, 1):
+        for z in (-L / 2 + 0.08, 0.0, L / 2 - 0.08):
+            parts.append(_cyl(0.035, H + 1.0, 0.0, tube, 8, x=sx * (W / 2 - 0.06), z=z))     # montants (garde-corps)
+            parts.append(_box([sx * (W / 2 - 0.06), 0.02, z], [0.16, 0.04, 0.16], tube))       # semelles
+        for y in (0.15, H - 0.06, H + 0.5, H + 0.98):
+            parts.append(_box([sx * (W / 2 - 0.06), y, 0], [0.07, 0.07, L], tube))             # lisses
+        d = _box([0, 0, 0], [0.05, 0.05, math.hypot(L / 2, H - 0.2)], tube)
+        a = math.atan2(H - 0.2, L / 2)
+        d.vertices = d.vertices @ np.array([[1, 0, 0], [0, math.cos(a), math.sin(a)], [0, -math.sin(a), math.cos(a)]]) + np.array([sx * (W / 2 - 0.06), H / 2, -L / 4])
+        parts.append(d)
+    for z in (-L / 2 + 0.08, L / 2 - 0.08):
+        parts.append(_box([0, 0.15, z], [W, 0.07, 0.07], tube))
+        parts.append(_box([0, H - 0.06, z], [W, 0.07, 0.07], tube))
+    # plancher : planches et plinthes jaunes
+    n = 8
+    for i in range(n):
+        parts.append(_box([-W / 2 + (i + 0.5) * W / n, H - 0.02, 0], [W / n - 0.02, 0.05, L], bois if i % 2 else bois_f))
+    for sx in (-1, 1):
+        parts.append(_box([sx * (W / 2 - 0.1), H + 0.08, 0], [0.03, 0.15, L], jaune))
+    # bâche sur le côté bas (masque l'intérieur)
+    for sx in (-1, 1):
+        parts.append(_box([sx * (W / 2 - 0.02), H / 2, 0], [0.01, H - 0.2, L - 0.2], [70, 110, 90, 255]))
+    return trimesh.util.concatenate(parts)
+
+
+def hoarding():
+    """palissade de chantier : panneaux peints sur poteaux, affiches"""
+    rng = np.random.default_rng(9)
+    parts = []
+    for i in range(4):
+        c = [[44, 92, 70, 255], [236, 234, 226, 255]][i % 2]
+        parts.append(_box([-1.5 + i, 1.12, 0], [0.98, 2.2, 0.06], c))
+    for x in (-2.0, -1.0, 0.0, 1.0, 2.0):
+        parts.append(_box([x, 1.1, -0.08], [0.1, 2.2, 0.1], [96, 72, 44, 255]))
+    parts.append(_box([0, 2.21, 0], [4.04, 0.06, 0.12], [96, 72, 44, 255]))
+    for (x, y, w, h) in [(-1.6, 1.35, 0.55, 0.8), (-0.3, 1.2, 0.6, 0.85), (1.3, 1.4, 0.5, 0.7)]:
+        c = [int(v) for v in rng.integers(60, 230, 3)] + [255]
+        parts.append(_box([x, y, 0.035], [w, h, 0.01], c))
+        parts.append(_box([x, y + h * 0.28, 0.042], [w * 0.8, h * 0.18, 0.01], [250, 248, 240, 255]))
+    return trimesh.util.concatenate(parts)
+
+
+def crowd_barrier():
+    """barrière de police en acier galvanisé, pieds plats"""
+    g = [168, 174, 178, 255]
+    parts = [_box([0, 1.03, 0], [2.0, 0.05, 0.05], g), _box([0, 0.25, 0], [2.0, 0.05, 0.05], g)]
+    for x in (-0.98, 0.98):
+        parts.append(_box([x, 0.55, 0], [0.05, 1.05, 0.05], g))
+        parts.append(_box([x, 0.02, 0], [0.08, 0.04, 0.6], g))
+    for i in range(14):
+        parts.append(_cyl(0.012, 0.78, 0.25, g, 6, x=-0.87 + i * 0.134))
+    parts.append(_box([0, 0.75, 0.03], [0.9, 0.18, 0.01], [214, 52, 40, 255]))
+    return trimesh.util.concatenate(parts)
+
+
+def pipes():
+    """buses de béton couchées, calées par des madriers"""
+    parts = []
+    for (x, z, y) in [(0, -0.48, 0.42), (0, 0.48, 0.42)]:
+        c = trimesh.creation.annulus(r_min=0.3, r_max=0.42, height=2.5, sections=20)
+        c.apply_transform(trimesh.transformations.rotation_matrix(math.pi / 2, [0, 1, 0]))
+        c.apply_translation([x, y, z])
+        c.visual = trimesh.visual.ColorVisuals(c, face_colors=[164, 160, 152, 255])
+        parts.append(c)
+    for x in (-0.9, 0.9):
+        parts.append(_box([x, 0.06, 0], [0.18, 0.12, 1.9], [130, 96, 56, 255]))
+    return trimesh.util.concatenate(parts)
+
+
 def build_meshes(out_dir):
     os.makedirs(out_dir, exist_ok=True)
     jersey().export(os.path.join(out_dir, 'beton.glb'))
@@ -250,7 +351,13 @@ def build_meshes(out_dir):
     chimney().export(os.path.join(out_dir, 'cheminee.glb'))
     vent().export(os.path.join(out_dir, 'ventilation.glb'))
     roof_ac().export(os.path.join(out_dir, 'clim_toit.glb'))
-    return ['beton', 'caisse', 'caisses2', 'tas_sacs', 'chateau_eau', 'cheminee', 'ventilation', 'clim_toit']
+    concrete_wall().export(os.path.join(out_dir, 'muret.glb'))
+    scaffold().export(os.path.join(out_dir, 'echafaudage.glb'))
+    hoarding().export(os.path.join(out_dir, 'palissade.glb'))
+    crowd_barrier().export(os.path.join(out_dir, 'barriere.glb'))
+    pipes().export(os.path.join(out_dir, 'tuyaux.glb'))
+    return ['beton', 'caisse', 'caisses2', 'tas_sacs', 'chateau_eau', 'cheminee', 'ventilation', 'clim_toit',
+            'muret', 'echafaudage', 'palissade', 'barriere', 'tuyaux']
 
 
 # ------------------------------------------------------------------ placement (à la main)
@@ -275,17 +382,29 @@ PLACES = [
     ['benne_b', -197.65, -86.0, 90], ['caisse', -197.75, -83.0, 0],
     ['benne', -202.35, -60.0, 90], ['caisses2', -202.25, -64.5, 90], ['poubelle_b', -202.6, -56.5, 0],
     ['sacs', -197.4, -40.0, 90],
-    # Passage de la Bourse (x 199..205) : un chantier, terrain de jeu du parkour
-    ['beton', 200.5, -104.0, 0], ['beton', 203.6, -96.0, 0], ['caisse', 200.2, -90.0, 0],
-    ['caisses2', 203.7, -84.5, 90], ['beton', 200.5, -77.0, 0], ['benne', 203.65, -71.0, 90],
-    ['beton', 200.5, -65.5, 0], ['beton', 203.6, -62.0, 0], ['caisse', 200.2, -53.0, 0], ['caisse', 200.2, -52.0, 0],
-    ['caisses2', 203.75, -44.0, 90], ['beton', 200.5, -38.0, 0], ['beton', 202.5, -30.0, 0],
+    # Passage de la Bourse (x 199..205) : chantier de free-run, une ligne d'obstacles
+    # à prendre en pleine course du sud au nord (un obstacle tous les 8 m environ)
+    ['beton', 202.0, -105.0, 0],                                  # bloc bas : vrille
+    ['barriere', 202.0, -97.0, 0],                                # barrière fine : saut de chat
+    ['compacte', 202.0, -89.0, 90],                               # voiture en travers : glissade, salto
+    ['muret', 202.0, -80.0, 0],                                   # muret : passement
+    ['echafaudage', 202.0, -70.0, 0], ['echafaudage', 202.0, -61.0, 0],   # deux plateformes, un trou de 4 m
+    ['tuyaux', 202.0, -50.5, 0],                                  # buses couchées
+    ['palissade', 202.0, -42.0, 0],                               # palissade haute : course sur le mur
+    ['beton', 200.6, -33.0, 0], ['beton', 203.4, -33.0, 0],       # deux blocs côte à côte
+    ['barriere', 202.0, -25.0, 0],
+    ['caisses2', 204.2, -112.0, 90], ['benne', 199.85, -117.0, 90],  # entrée du chantier (côtés)
     # Rue de la Fontaine (z 62..68) : arrière-cours
     ['benne', -240.0, 62.65, 0], ['sacs', -236.0, 62.4, 0], ['poubelle', -233.5, 62.4, 0],
     ['benne_b', -180.0, 67.35, 180], ['caisse', -176.5, 67.4, 0], ['poubelle_b', -165.0, 62.4, 0],
     # Rue des Tanneurs (étroite) : séparateurs d'un petit chantier
     ['beton', -147.0, 40.0, 90], ['beton', -147.0, 44.0, 90], ['caisse', -144.6, 52.0, 0],
 ]
+
+
+# défi chronométré du chantier : départ, au-dessus de la voiture, du trou entre les
+# échafaudages, de la palissade, arrivée
+ANNEAUX_BOURSE = [[202.0, 1.2, -112.0], [202.0, 3.1, -89.0], [202.0, 3.5, -65.5], [202.0, 4.0, -42.0], [202.0, 1.3, -18.0]]
 
 
 def boxes():

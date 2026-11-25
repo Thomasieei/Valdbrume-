@@ -8,7 +8,7 @@ signal coup(style: String)          # chaque attaque lancée (entraînement, qu�
 signal ko
 @export var walk_speed := 1.6
 @export var jog_speed := 4.2
-@export var sprint_speed := 6.0
+@export var sprint_speed := 7.4
 @export var jump_velocity := 5.6
 var gravity := 18.0
 var move_input := Vector2.ZERO
@@ -32,6 +32,7 @@ var queued := ""
 var _jump_req := false
 var facing := Vector3.FORWARD
 var roll_dir := Vector3.ZERO
+var roll_v := 6.5
 var emotes := ["Celebration", "Dance_Loop", "Yes", "Idle_FoldArms_Loop", "Surprise", "Idle_No_Loop", "Drink"]
 var emote_i := 0
 # combat
@@ -62,6 +63,16 @@ var mur_dir := Vector3.ZERO
 var mur_cote := "L"
 signal parkour(nom: String)
 signal pas(surface: String)          # bruit de pas, d'échelle…
+# free-run : figures acrobatiques qui gardent la vitesse, élan gagné en enchaînant
+signal figure(nom: String, chaine: int)
+var elan := 0.0                  # 0 → 1 : vitesse de pointe gagnée en enchaînant les figures
+var fig := {}                    # figure en cours (trajectoire calculée, rotations)
+var fig_nom := ""                # dernière figure réussie (affichée à l'écran)
+var fig_aff := 9.0               # temps depuis son affichage
+var fig_chaine := 0              # figures enchaînées sans s'arrêter
+var fig_fin_t := 99.0            # temps depuis la fin de la dernière figure
+var fig_tour := 0
+var air_fig := {}                # figure en l'air (second appui sur saut)
 var receptacles: Array = []      # tas de sacs où l'on peut plonger depuis un toit [x, y, z]
 var plongeon := {}               # saut de la foi en cours : {cible, t}
 var echelles: Array = []         # [x, z, bas, haut, direction du regard]
@@ -349,12 +360,17 @@ func _parkour_check(hv: Vector3, lent := false, dir_force := Vector3.ZERO) -> bo
 	if hit.is_empty(): return false
 	var hp: Vector3 = hit.position
 	var dist := Vector2(hp.x - pos.x, hp.z - pos.z).length()
-	var probe := hp + fwd * 0.25
+	var probe := hp + fwd * 0.06          # juste derrière la face touchée (barrières fines comprises)
 	var top := _ray(Vector3(probe.x, pos.y + 3.3, probe.z), Vector3(probe.x, pos.y - 0.2, probe.z))
-	if top.is_empty(): return false
+	# dessus introuvable (ou sous le point touché : le rayon partait dans le mur) = mur trop haut
+	var trop_haut := top.is_empty() or (top.position as Vector3).y - pos.y > 2.55 or (top.position as Vector3).y < (hp.y - 0.05)
+	if trop_haut:
+		# grand mur en pleine course : on court dessus et on repart en salto arrière
+		if not lent and hv.length() > 5.2 and dist < 1.7: return _figure_mur(fwd, hp)
+		return false
 	var top_p: Vector3 = top.position
 	var h2 := top_p.y - pos.y
-	if h2 < 0.25 or h2 > 2.55: return false
+	if h2 < 0.25: return false
 	# épaisseur : tant que le dessus reste haut
 	var depth := 0.25
 	var land_y := pos.y
@@ -364,16 +380,18 @@ func _parkour_check(hv: Vector3, lent := false, dir_force := Vector3.ZERO) -> bo
 		var q := hp + fwd * k
 		var rr := _ray(Vector3(q.x, pos.y + 3.3, q.z), Vector3(q.x, pos.y - 1.5, q.z))
 		if rr.is_empty() or (rr.position as Vector3).y < pos.y + 0.25:
-			land_y = (rr.position as Vector3).y if not rr.is_empty() else pos.y
+			land_y = (rr.position as Vector3).y if not rr.is_empty() else pos.y - 30.0     # rien dessous : le vide
 			deep = false
 			break
 		depth = k; k += 0.35
 	# un mur juste derrière l'obstacle (benne contre une façade) : on grimpe dessus
-	if not deep and not _ray(top_p + Vector3.UP * 0.35, top_p + Vector3.UP * 0.35 + fwd * (depth + 1.4)).is_empty():
+	if not deep and not _ray(top_p + Vector3.UP * (0.35 if lent else 1.3), top_p + Vector3.UP * (0.35 if lent else 1.3) + fwd * (depth + 1.4)).is_empty():
 		deep = true
 	# assez de place au-dessus pour passer ou monter
 	if not _ray(top_p + Vector3.UP * 0.05, top_p + Vector3.UP * 1.85).is_empty(): return false
 	var sprint := hv.length() > 5.2
+	# en pleine course : figures de free-run qui gardent toute la vitesse
+	if sprint and not lent and _figure_obstacle(fwd, hp, dist, top_p, h2, depth, deep, land_y, hv.length()): return true
 	var p_top := Vector3(hp.x, top_p.y, hp.z) + fwd * 0.55
 	# au-dessus du vide (bord de toit) : seulement en sprint, et on s'élance
 	var vide := not deep and land_y < pos.y - 1.2
@@ -401,6 +419,288 @@ func _parkour_check(hv: Vector3, lent := false, dir_force := Vector3.ZERO) -> bo
 		return _pk_start("PK_Flip", "passe", pos, bout2, land_y, 1.0, hv.length())
 	if h2 <= 1.45: return _pk_start("ClimbUp_1m", "grimpe", pos, p_top, top_p.y, 1.25, 0.0)
 	return _pk_start("ClimbUp_2m", "grimpe", pos, p_top, top_p.y, 1.15, 0.0)
+
+
+# ------------------------------------------------------------ free-run
+## figures : animation (jouée sur place, entre deux fractions), rotations ajoutées
+## (en tours : x = salto avant, y = vrille, z = salto latéral), tangage (corps penché
+## vers l'avant au milieu du saut), lacet (corps de travers, en radians)
+const FIGURES := {
+	"Salto avant": {"anim": "PK_Flip_EP", "a0": 0.17, "a1": 0.64},
+	"Salto groupé": {"anim": "JogToFlip_EP", "a0": 0.2, "a1": 0.7},
+	"Saut du voleur": {"anim": "PK_Vault_EP", "a0": 0.14, "a1": 0.84},
+	"Saut de chat": {"anim": "PK_NinjaDouble_EP", "a0": 0.05, "a1": 0.85, "tangage": 1.05},
+	"Vrille 360": {"anim": "DoubleJump_EP", "a0": 0.05, "a1": 0.95, "rot": Vector3(0, 1, 0)},
+	"Salto latéral": {"anim": "PK_NinjaDouble_EP", "a0": 0.1, "a1": 0.9, "rot": Vector3(0, 0, 1)},
+	"Vrille papillon": {"anim": "DoubleJump_EP", "a0": 0.3, "a1": 0.95, "rot": Vector3(0, 1, 0), "tangage": 1.35},
+	"Double vrille": {"anim": "PK_NinjaDouble_EP", "a0": 0.05, "a1": 0.9, "rot": Vector3(0, 2, 0)},
+	"Salto arrière": {"anim": "BackFlip_EP", "a0": 0.1, "a1": 0.56},
+	"Glissade sur capot": {"anim": "Slide_Loop", "a0": 0.0, "a1": 0.9, "lacet": 1.45},
+	"Montée éclair": {"anim": "ClimbUp_1m", "a0": 0.25, "a1": 0.95},
+	"Saut de précision": {"anim": "NinjaJump_Idle_Loop", "a0": 0.0, "a1": 1.0, "tangage": 0.3},
+}
+
+## choisit une figure différente de la précédente dans la liste
+func _choix(liste: Array) -> String:
+	fig_tour += 1
+	var n: String = liste[fig_tour % liste.size()]
+	if n == fig_nom and liste.size() > 1: n = liste[(fig_tour + 1) % liste.size()]
+	return n
+
+## obstacle en pleine course : la figure dépend de sa hauteur et de sa longueur
+func _figure_obstacle(fwd: Vector3, hp: Vector3, dist: float, top_p: Vector3, h2: float, depth: float, deep: bool, land_y: float, v: float) -> bool:
+	var pos := global_position
+	var vide := not deep and land_y < pos.y - 1.2
+	if vide: return _saut_vide(fwd, v)
+	var top := top_p.y
+	if not deep and h2 <= 1.5 and depth <= 3.0:
+		# par-dessus : on retombe de l'autre côté sans ralentir
+		var bout := hp + fwd * (depth + clampf(v * 0.2, 1.0, 2.2))
+		if _sol_interdit(bout): return false
+		var nom: String
+		if depth > 1.6 and h2 > 0.8 and h2 < 1.3: nom = _choix(["Glissade sur capot", "Salto avant", "Vrille papillon", "Salto groupé"])
+		elif depth > 1.6: nom = _choix(["Salto avant", "Vrille papillon", "Salto groupé"])
+		elif h2 <= 0.65: nom = _choix(["Vrille 360", "Saut du voleur", "Salto latéral", "Double vrille"])
+		else: nom = _choix(["Saut de chat", "Saut du voleur", "Salto avant", "Vrille 360", "Salto latéral", "Salto groupé"])
+		var pic := top + (0.18 if nom == "Glissade sur capot" else 0.55 + (0.25 if FIGURES[nom].has("rot") or nom.begins_with("Salto") else 0.0))
+		var d := Vector2(bout.x - pos.x, bout.z - pos.z).length()
+		var dur := clampf(d / maxf(v, 6.0), 0.42, 0.95)
+		if nom.begins_with("Salto") or nom.begins_with("Double") or nom == "Vrille papillon": dur = maxf(dur, 0.62)
+		return _fig_start(nom, pos, Vector3(bout.x, land_y, bout.z), pic, dur, v * 1.04)
+	if h2 <= 1.5:
+		# on monte dessus d'un bond (saut de chat ou vrille), toujours lancé
+		var nom2 := _choix(["Saut de chat", "Vrille 360", "Saut du voleur"])
+		var p_top := Vector3(hp.x, top, hp.z) + fwd * clampf(v * 0.12, 0.6, 1.2)
+		var d2 := Vector2(p_top.x - pos.x, p_top.z - pos.z).length()
+		return _fig_start(nom2, pos, p_top, top + 0.5, clampf(d2 / v, 0.4, 0.7), v)
+	# mur de 1,5 à 2,5 m
+	if not deep and depth <= 1.0:
+		# palissade : deux pas sur le mur, salto par-dessus, réception de l'autre côté
+		var bout3 := hp + fwd * (depth + 2.4)
+		if _sol_interdit(bout3): return false
+		return _fig_start(_choix(["Salto avant", "Salto groupé", "Vrille papillon"]), pos, Vector3(bout3.x, land_y, bout3.z), top + 1.0, 1.05, v * 0.95,
+			{"mur": hp - fwd * 0.32, "mur_h": top - 1.15})
+	# plus épais : course sur le mur, on se hisse d'un coup et on repart sur le dessus
+	var p_haut := Vector3(hp.x, top, hp.z) + fwd * 0.7
+	return _fig_start("Montée éclair", pos, p_haut, top + 0.15, 0.55, v * 0.8, {"mur": hp - fwd * 0.3, "mur_h": top - 1.0})
+
+## bord de toit ou trou devant : on cherche une réception plus loin et on s'élance
+func _saut_vide(fwd: Vector3, v: float) -> bool:
+	var pos := global_position
+	var plus_haut := pos.y
+	var d := 1.4
+	var portee := clampf(v * 1.25, 7.0, 12.5)
+	var choix := {}
+	while d <= portee:
+		var q := pos + fwd * d
+		var r := _ray(Vector3(q.x, pos.y + 2.6, q.z), Vector3(q.x, pos.y - 7.0, q.z))
+		if not r.is_empty():
+			var y: float = (r.position as Vector3).y
+			if choix.is_empty(): plus_haut = maxf(plus_haut, y)
+			if d > 2.4 and y > pos.y - 6.5 and y < pos.y + 1.1 and (r.normal as Vector3).y > 0.7:
+				# réception stable : le sol continue sur 1 m à la même hauteur
+				var q2 := q + fwd * 1.0
+				var r2 := _ray(Vector3(q2.x, y + 1.5, q2.z), Vector3(q2.x, y - 0.4, q2.z))
+				if not r2.is_empty() and absf((r2.position as Vector3).y - y) < 0.3 and not _sol_interdit(q):
+					# on garde la réception la plus haute (l'autre plateforme plutôt que le fond du trou)
+					if choix.is_empty() or y > float(choix.y) + 0.5:
+						choix = {"d": d, "y": y, "q": q, "haut": plus_haut}
+		d += 0.4
+	if choix.is_empty(): return false
+	var dd: float = choix.d
+	var yy: float = choix.y
+	var bout := (choix.q as Vector3) + fwd * 0.5
+	var nom := _choix(["Salto avant", "Vrille papillon", "Salto latéral", "Salto groupé", "Double vrille"]) if dd > 3.6 else _choix(["Saut de précision", "Vrille 360", "Salto avant"])
+	var dur := clampf((dd + 0.5) / v, 0.6, 1.25)
+	return _fig_start(nom, pos, Vector3(bout.x, yy, bout.z), float(choix.haut) + 0.9 + dd * 0.06, dur, v, {"ralenti": dd > 4.5, "chute": pos.y - yy})
+
+## grand mur : deux pas sur le mur puis salto arrière, réception dos au mur
+func _figure_mur(fwd: Vector3, hp: Vector3) -> bool:
+	var pos := global_position
+	# une échelle de secours à cet endroit : on s'y accroche plutôt
+	for e in echelles:
+		if Vector2(pos.x - float(e[0]), pos.z - float(e[1])).length() < 3.0 and pos.y < float(e[3]) - 1.0: return false
+	var pied := hp - fwd * 0.45
+	var bout := pied - fwd * 1.9
+	var r := _ray(Vector3(bout.x, pos.y + 2.0, bout.z), Vector3(bout.x, pos.y - 1.0, bout.z))
+	if r.is_empty() or absf((r.position as Vector3).y - pos.y) > 0.4: return false
+	return _fig_start("Salto arrière", pos, Vector3(bout.x, pos.y, bout.z), pos.y + 2.7, 0.95, 3.0, {"mur": pied, "dos": true})
+
+func _fig_start(nom: String, p0: Vector3, p1: Vector3, pic: float, dur: float, v_sortie: float, opts := {}) -> bool:
+	var f: Dictionary = FIGURES[nom]
+	var fwd := Vector3(p1.x - p0.x, 0, p1.z - p0.z).normalized()
+	if opts.get("dos", false): fwd = Vector3((opts.mur as Vector3).x - p0.x, 0, (opts.mur as Vector3).z - p0.z).normalized()
+	if fwd.length() < 0.5: return false
+	fig = {"nom": nom, "p0": p0, "p1": p1, "pic": maxf(pic, maxf(p0.y, p1.y) + 0.1), "dur": dur, "fwd": fwd, "v": v_sortie,
+		"yaw": atan2(fwd.x, fwd.z), "opts": opts, "lance": false}
+	state = S.PARKOUR; state_t = 0.0; pk = {}
+	velocity = Vector3.ZERO
+	vis.rotation.y = fig.yaw
+	var L := vis.length(String(f.anim))
+	if opts.has("mur"):
+		vis.play("Sprint_Loop", 0.06, 1.7, true)
+	else:
+		_fig_anim()
+	parkour.emit(nom)
+	Sfx.joue("elan", global_position + Vector3.UP, -2.0, 0.12)
+	Sfx.joue("souffle", global_position + Vector3.UP * 1.5, -6.0, 0.1)
+	return true
+
+## le sol s'arrête juste devant (bord de toit, trou)
+func _bord_devant(fwd: Vector3) -> bool:
+	var q := global_position + fwd * 0.75
+	return _ray(q + Vector3.UP * 0.4, q - Vector3.UP * 1.4).is_empty()
+
+## caméra : champ de vision qui s'ouvre avec la vitesse, traits de vitesse
+var _vitesse_fx: ColorRect
+var _vitesse_f := 0.0
+func _camera_vitesse(dt: float, v: float) -> void:
+	var f := clampf((v - 5.5) / 4.5, 0.0, 1.0)
+	cam.fov = lerpf(cam.fov, 68.0 + 15.0 * f + (5.0 if not fig.is_empty() else 0.0), 1.0 - exp(-4.0 * dt))
+	if _vitesse_fx == null:
+		var cl := CanvasLayer.new(); cl.layer = -1; add_child(cl)
+		_vitesse_fx = ColorRect.new(); _vitesse_fx.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_vitesse_fx.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var m := ShaderMaterial.new(); m.shader = load("res://shaders/vitesse.gdshader")
+		_vitesse_fx.material = m
+		cl.add_child(_vitesse_fx)
+	var force := clampf((v - 7.0) / 3.0, 0.0, 1.0)
+	_vitesse_f = lerpf(_vitesse_f, force, 1.0 - exp(-5.0 * dt))
+	(_vitesse_fx.material as ShaderMaterial).set_shader_parameter("force", _vitesse_f)
+	_vitesse_fx.visible = _vitesse_f > 0.02
+
+## hauteur gagnée en courant sur le mur avant la figure
+func _mur_h() -> float:
+	var o: Dictionary = fig.opts
+	if o.has("mur_h"): return maxf(float(o.mur_h), 0.4)
+	return 1.3 if fig.nom == "Salto arrière" else maxf(float((fig.p1 as Vector3).y - (fig.p0 as Vector3).y) - 0.9, 0.4)
+
+## réception interdite : dans l'eau du bassin de la place (hors île et passerelles)
+func _sol_interdit(q: Vector3) -> bool:
+	var ax := absf(q.x); var az := absf(q.z)
+	if ax < 19.0 and az < 19.0:
+		return not (ax < 8.0 and az < 8.0) and not (ax < 3.0 or az < 3.0)
+	return false
+
+func _fig_anim() -> void:
+	var f: Dictionary = FIGURES[String(fig.nom)]
+	var L := vis.length(String(f.anim))
+	var part := 0.3 if (fig.opts as Dictionary).has("mur") else 0.0
+	var reste := float(fig.dur) * (1.0 - part)
+	vis.play(String(f.anim), 0.07, maxf(L * (float(f.a1) - float(f.a0)) / maxf(reste, 0.1), 0.2), true)
+	vis.anim.seek(L * float(f.a0), true)
+	fig.lance = true
+
+func _fig_update(dt: float) -> void:
+	var dur: float = fig.dur
+	var k := clampf(state_t / dur, 0.0, 1.0)
+	var p0: Vector3 = fig.p0; var p1: Vector3 = fig.p1
+	var opts: Dictionary = fig.opts
+	var pos: Vector3
+	var f: Dictionary = FIGURES[String(fig.nom)]
+	var kr := k                     # avancée de la figure elle-même (après la course sur le mur)
+	if opts.has("mur"):
+		# 1) quelques pas sur le mur, 2) la figure
+		var pied: Vector3 = opts.mur
+		var part := 0.3
+		if k < part:
+			var a := k / part
+			pos = p0.lerp(Vector3(pied.x, p0.y, pied.z), a)
+			pos.y = p0.y + _mur_h() * a * a
+			kr = 0.0
+		else:
+			if not fig.lance: _fig_anim()
+			kr = (k - part) / (1.0 - part)
+			var y_mur := p0.y + _mur_h()
+			var depart := Vector3(pied.x, y_mur, pied.z)
+			pos = depart.lerp(p1, kr)
+			var c := 2.0 * float(fig.pic) - 0.5 * (depart.y + p1.y)
+			pos.y = (1.0 - kr) * (1.0 - kr) * depart.y + 2.0 * kr * (1.0 - kr) * c + kr * kr * p1.y
+	else:
+		pos = p0.lerp(p1, k)
+		var c2 := 2.0 * float(fig.pic) - 0.5 * (p0.y + p1.y)
+		pos.y = (1.0 - k) * (1.0 - k) * p0.y + 2.0 * k * (1.0 - k) * c2 + k * k * p1.y
+	global_position = pos
+	# rotations ajoutées autour du centre du corps
+	var e := smoothstep(0.08, 0.9, kr)
+	var rot: Vector3 = f.get("rot", Vector3.ZERO)
+	var tangage := float(f.get("tangage", 0.0)) * sin(PI * kr)
+	var lacet := float(f.get("lacet", 0.0)) * clampf(sin(PI * kr) * 2.2, 0.0, 1.0)
+	var yaw: float = fig.yaw
+	if opts.has("mur") and kr <= 0.0:
+		# pieds contre le mur : le corps se couche en arrière en montant
+		tangage = (-0.75 if opts.get("dos", false) else -0.4) * clampf(k / 0.3, 0.0, 1.0)
+	var b := Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, tangage + rot.x * TAU * e) * Basis(Vector3.BACK, rot.z * TAU * e) * Basis(Vector3.UP, rot.y * TAU * e + lacet)
+	vis.basis = b
+	var centre := Vector3.UP * 0.95
+	vis.position = centre - vis.basis * centre
+	# ralenti au sommet des grands sauts
+	if opts.get("ralenti", false):
+		Engine.time_scale = lerpf(1.0, 0.42, clampf(sin(PI * k) * 1.6 - 0.6, 0.0, 1.0))
+	if k >= 1.0: _fig_fin()
+
+func _fig_fin() -> void:
+	var opts: Dictionary = fig.opts
+	var dos: bool = opts.get("dos", false)
+	var fwd: Vector3 = -fig.fwd if dos else fig.fwd
+	Engine.time_scale = 1.0
+	vis.basis = Basis(Vector3.UP, float(fig.yaw)); vis.position = Vector3.ZERO
+	var nom: String = fig.nom
+	fig_chaine = fig_chaine + 1 if fig_fin_t < 2.2 else 1
+	fig_nom = nom; fig_aff = 0.0; fig_fin_t = 0.0
+	elan = minf(elan + 0.28, 1.0)
+	figure.emit(nom, fig_chaine)
+	velocity = fwd * float(fig.v)
+	var chute: float = opts.get("chute", 0.0)
+	fig = {}
+	pk_cd = 0.12
+	Sfx.joue("reception", global_position, -5.0, 0.1)
+	if chute > 2.2:
+		# grande descente : roulade de réception sans perdre l'élan
+		state = S.ROLL; state_t = 0.0; roll_dir = fwd; roll_v = maxf(float(velocity.length()), 6.5)
+		state_len = vis.length("Roll") * 0.62
+		vis.play("Roll", 0.05, 1.6, true)
+		Sfx.joue("chute", global_position, -6.0)
+	else:
+		state = S.LOCO; state_t = 0.0
+		vis.play("Sprint_Loop" if float(velocity.length()) > 5.0 else "Jog_Fwd_Loop", 0.1)
+	shake = maxf(shake, 0.18)
+
+## figure en l'air (second appui sur saut pendant un saut lancé)
+func _air_figure() -> void:
+	var nom := _choix(["Salto avant", "Salto arrière", "Vrille 360", "Salto latéral", "Vrille papillon"])
+	var f: Dictionary = FIGURES[nom]
+	air_fig = {"nom": nom, "t": 0.0, "dur": 0.62, "yaw": vis.rotation.y}
+	var L := vis.length(String(f.anim))
+	vis.play(String(f.anim), 0.06, L * (float(f.a1) - float(f.a0)) / 0.62, true)
+	vis.anim.seek(L * float(f.a0), true)
+	parkour.emit(nom)
+	Sfx.joue("elan", global_position + Vector3.UP, -3.0, 0.12)
+
+func _air_figure_update(dt: float) -> void:
+	air_fig.t = float(air_fig.t) + dt
+	var k := clampf(float(air_fig.t) / float(air_fig.dur), 0.0, 1.0)
+	var f: Dictionary = FIGURES[String(air_fig.nom)]
+	var rot: Vector3 = f.get("rot", Vector3.ZERO)
+	var e := smoothstep(0.05, 0.95, k)
+	var tangage := float(f.get("tangage", 0.0)) * sin(PI * k)
+	var yaw: float = air_fig.yaw
+	vis.basis = Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, tangage + rot.x * TAU * e) * Basis(Vector3.BACK, rot.z * TAU * e) * Basis(Vector3.UP, rot.y * TAU * e)
+	var centre := Vector3.UP * 0.95
+	vis.position = centre - vis.basis * centre
+	if k >= 1.0:
+		vis.basis = Basis(Vector3.UP, yaw); vis.position = Vector3.ZERO
+		fig_chaine = fig_chaine + 1 if fig_fin_t < 2.2 else 1
+		fig_nom = String(air_fig.nom); fig_aff = 0.0; fig_fin_t = 0.0
+		elan = minf(elan + 0.2, 1.0)
+		figure.emit(fig_nom, fig_chaine)
+		air_fig = {}
+		vis.play("NinjaJump_Idle_Loop", 0.15)
+
+func _air_figure_stop() -> void:
+	if air_fig.is_empty(): return
+	vis.basis = Basis(Vector3.UP, float(air_fig.yaw)); vis.position = Vector3.ZERO
+	air_fig = {}
 
 ## saut de la foi : en s'élançant d'un toit au-dessus d'un tas de sacs, on y plonge
 func _plongeon_check() -> void:
@@ -599,6 +899,8 @@ func _physics_process(dt: float) -> void:
 	shake = max(shake - dt * 2.2, 0.0)
 	combo_t += dt
 	if combo_t > 1.6: combo_n = 0
+	fig_aff += dt; fig_fin_t += dt
+	if fig_fin_t > 2.2 and state != S.PARKOUR and air_fig.is_empty(): fig_chaine = 0
 	cam.h_offset = randf_range(-1.0, 1.0) * shake * 0.09
 	cam.v_offset = randf_range(-1.0, 1.0) * shake * 0.07
 	trail.active = state == S.ATTACK and style() == "epee" and state_t < state_len * 0.8
@@ -619,9 +921,12 @@ func _physics_process(dt: float) -> void:
 	if state == S.LOCO and is_on_floor() and not echelles.is_empty() and _echelle_check(mv): return
 	if state == S.AIR and state_t > 0.12 and plongeon.is_empty() and _rebord_check(): return
 	if state == S.PARKOUR:
-		_pk_update(dt)
+		if fig.is_empty(): _pk_update(dt)
+		else: _fig_update(dt)
+		_camera_vitesse(dt, 9.0 if not fig.is_empty() else 3.0)
 		_animate(0.0)
 		return
+	if not air_fig.is_empty() and state != S.AIR: _air_figure_stop()
 	if state == S.WALLRUN:
 		# collé au mur, on court dessus ; saut = rebond, fin du mur = chute
 		velocity.y -= gravity * 0.32 * dt
@@ -641,6 +946,9 @@ func _physics_process(dt: float) -> void:
 	# parkour automatique : en courant vers un obstacle
 	if state == S.LOCO and is_on_floor() and pk_cd <= 0.0 and amount > 0.5:
 		var hv0 := Vector3(velocity.x, 0, velocity.z)
+		# bord de toit / trou devant en pleine course : grand saut vers l'autre côté
+		if hv0.length() > 5.2 and hv0.normalized().dot(mv.normalized()) > 0.7 and _bord_devant(hv0.normalized()):
+			if _saut_vide(hv0.normalized(), hv0.length()): return
 		if hv0.length() > 3.6 and hv0.normalized().dot(mv.normalized()) > 0.7:
 			if _parkour_check(hv0): return
 		elif hv0.length() > 1.0 and hv0.normalized().dot(mv.normalized()) > 0.7:
@@ -653,10 +961,12 @@ func _physics_process(dt: float) -> void:
 	match state:
 		S.LOCO, S.EMOTE, S.LAND:
 			if amount > 0.05:
-				var sp := sprint_speed if sprint else (jog_speed if amount > 0.45 else walk_speed)
+				var sp := sprint_speed + 3.4 * elan if sprint else (jog_speed if amount > 0.45 else walk_speed)
 				target = mv.normalized() * sp
 				if state == S.EMOTE: state = S.LOCO
 			if state == S.LAND and state_t > 0.25: state = S.LOCO
+			# l'élan retombe doucement en course, vite sinon
+			elan = maxf(elan - (0.04 if sprint and hv.length() > 5.0 else 0.9) * dt, 0.0)
 			if state == S.EMOTE and state_t > state_len: state = S.LOCO
 		S.ATTACK:
 			# petite avancée au moment du coup (vitesse fixe, jamais cumulée), puis arrêt net
@@ -675,8 +985,8 @@ func _physics_process(dt: float) -> void:
 			elif state_t > state_len:
 				state = S.LOCO if is_on_floor() else S.AIR
 		S.ROLL:
-			target = roll_dir * 6.5 * (1.0 - clamp(state_t / state_len, 0.0, 1.0) * 0.6)
-			if state_t > state_len: state = S.LOCO
+			target = roll_dir * roll_v * (1.0 - clamp(state_t / state_len, 0.0, 1.0) * (0.6 if roll_v < 7.0 else 0.15))
+			if state_t > state_len: state = S.LOCO; roll_v = 6.5
 		S.SLIDE:
 			target = roll_dir * lerp(sprint_speed * 1.15, 2.0, clamp(state_t / state_len, 0.0, 1.0))
 			if state_t > 0.25 and vis.current == "Slide_Start": vis.play("Slide_Loop", 0.1)
@@ -711,6 +1021,7 @@ func _physics_process(dt: float) -> void:
 			target = Vector3.ZERO
 			if state_t > state_len: state = S.LOCO
 		S.AIR:
+			if not air_fig.is_empty(): _air_figure_update(dt)
 			if not plongeon.is_empty():
 				target = _plongeon_update(dt)
 			else:
@@ -745,7 +1056,8 @@ func _physics_process(dt: float) -> void:
 		velocity.y -= gravity * dt
 		if want_jump and air_jumps == 0 and plongeon.is_empty() and state in [S.AIR, S.LOCO]:
 			air_jumps = 1; velocity.y = jump_velocity * (1.15 if ninja else 0.95); state = S.AIR; state_t = 0.0
-			vis.play("PK_NinjaDouble" if ninja else "DoubleJump", 0.06, 1.1, true)
+			if ninja or Vector2(velocity.x, velocity.z).length() > 5.0: _air_figure()
+			else: vis.play("DoubleJump", 0.06, 1.1, true)
 		if state == S.LOCO and velocity.y < -2.0:
 			state = S.AIR; state_t = 0.0
 			if Vector2(velocity.x, velocity.z).length() > 3.0: _plongeon_check()
@@ -762,6 +1074,7 @@ func _physics_process(dt: float) -> void:
 	if was_air: chute_v = minf(chute_v, velocity.y)
 	move_and_slide()
 	if was_air and is_on_floor() and state_t > 0.1:
+		_air_figure_stop()
 		var hv_l := Vector3(velocity.x, 0, velocity.z)
 		if not plongeon.is_empty():
 			# réception sur le dos dans les sacs, puis on se relève d'un bond
@@ -795,6 +1108,7 @@ func _physics_process(dt: float) -> void:
 		vis.rotation.y = lerp_angle(vis.rotation.y, atan2(face.x, face.z), 1.0 - exp(-14.0 * dt))
 	elif state == S.ROLL:
 		vis.rotation.y = atan2(roll_dir.x, roll_dir.z)
+	_camera_vitesse(dt, hv.length())
 	_animate(hv.length())
 
 func _animate(s: float) -> void:
