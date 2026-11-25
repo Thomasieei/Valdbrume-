@@ -30,7 +30,7 @@ jobs:
           for f in project/scripts/*.gd; do timeout 60 ~/godot/godot --headless --path project --check-only --script "res://scripts/$(basename $f)" 2>&1 | grep -E "SCRIPT ERROR|Parse Error|error\(" | sed "s|^|$(basename $f): |" || true; done
       - name: Effets
         run: |
-          timeout 1500 xvfb-run -a -s "-screen 0 1280x720x24" ~/godot/godot --path project --rendering-method mobile --rendering-driver vulkan --resolution 1280x720 --fixed-fps 60 -- --mission 2>&1 | grep -E "MISSION|SCRIPT|ERROR|capture" | head -60
+          timeout 1500 xvfb-run -a -s "-screen 0 1280x720x24" ~/godot/godot --path project --rendering-method mobile --rendering-driver vulkan --resolution 1280x720 --fixed-fps 60 -- --mission 2>&1 | grep -E "MISSION|SCRIPT|ERROR|capture|TOUCHE" | head -60
       - name: Publication
         run: |
           cd captures && git init -q && git checkout -q -b diag && git add . && git -c user.name=ci -c user.email=ci@x commit -qm diag

@@ -537,10 +537,17 @@ func _planche(out: String, nom: String, imgs: Array) -> void:
 
 ## filme une action vue de côté : 6 images à intervalles donnés (en images de jeu)
 func _filme(out: String, nom: String, sujet: Node3D, dir: Vector3, pas: Array) -> void:
-	var cam := Camera3D.new(); add_child(cam); cam.fov = 58.0
+	var cam := Camera3D.new(); add_child(cam); cam.fov = 60.0
 	var side := dir.cross(Vector3.UP).normalized()
 	var c0 := sujet.global_position + dir * 2.5
-	cam.global_position = c0 + side * 8.5 + Vector3(0, 1.9, 0)
+	# côté dégagé (pas de façade entre la caméra et l'action)
+	var space := get_world_3d().direct_space_state
+	var best_p := c0 + side * 8.0 + Vector3(0, 1.9, 0)
+	for cand in [side * 8.0, -side * 8.0, side * 5.5, -side * 5.5, -dir * 7.0]:
+		var p: Vector3 = c0 + cand + Vector3(0, 1.9, 0)
+		var q := PhysicsRayQueryParameters3D.create(c0 + Vector3(0, 1.2, 0), p, 1)
+		if space.intersect_ray(q).is_empty(): best_p = p; break
+	cam.global_position = best_p
 	cam.look_at(c0 + Vector3(0, 1.0, 0)); cam.current = true
 	ui.visible = false
 	var imgs := []
@@ -558,6 +565,7 @@ func _test_mission() -> void:
 	var report := []
 	var rep := {"projections": 0, "parades": 0, "esquives": 0, "coups_recus": 0, "heros_projete": 0, "coups_portes": 0}
 	for k in quests.etat.keys(): quests.etat.erase(k)
+	Voyou.debug = true
 	life.minute = 14 * 60; life.warp(); day.force_hour = 14.0; day.apply(14.0)
 	quests.donne("balafre")
 	var A: Vector3 = quests.ARENE
@@ -644,6 +652,7 @@ func _test_mission() -> void:
 				if serie >= 3 + randi() % 2: serie = 0; pause_t = randf_range(0.5, 1.1)
 	player.move_input = Vector2.ZERO
 	rep["duree_combat_s"] = game_t
+	rep["voyous"] = Voyou.stats
 	rep["mission"] = quests.etat.balafre.duplicate()
 	await _wait(30)
 	cam.global_position = player.global_position + Vector3(3.0, 2.2, 4.0); cam.look_at(player.global_position + Vector3(0, 0.8, -3.0)); cam.current = true

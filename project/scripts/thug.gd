@@ -19,6 +19,8 @@ const TYPES := {
 }
 static var jeton: Voyou = null          # un seul ennemi attaque à la fois
 static var _jeton_cd := 0.0
+static var stats := {"projections": 0, "max_enchaine": 0, "touches": 0}
+static var debug := false
 
 var type := "rouquin"
 var d: Dictionary
@@ -126,6 +128,9 @@ func touche(dmg: float, from: Vector3, kind := "") -> void:
 	var now := horloge
 	coups_recus = coups_recus + 1 if now - dernier_coup < 1.4 else 1
 	dernier_coup = now
+	stats.touches += 1
+	stats.max_enchaine = max(int(stats.max_enchaine), coups_recus)
+	if debug and int(stats.touches) <= 40: print("TOUCHE ", type, " enchaine=", coups_recus, " t=", snapped(now, 0.01), " etat=", etat, " kind=", kind)
 	pv -= dmg
 	_barre()
 	if pv <= 0.0:
@@ -166,6 +171,7 @@ func _hit_fx(dmg: float, from: Vector3, fort: bool) -> void:
 
 ## projection : il s'envole, retombe, glisse, puis se relève (ou reste K.-O.)
 func _projete(from: Vector3, force: float, dmg: float) -> void:
+	stats.projections += 1
 	coups_recus = 0
 	var away := global_position - from; away.y = 0
 	away = away.normalized() if away.length() > 0.01 else -_avant()
