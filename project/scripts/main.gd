@@ -581,9 +581,11 @@ func _test_mission() -> void:
 	var game_t := 0.0
 	var prev_pstate: int = player.state
 	var esquive_t := 0.0
+	var pause_t := 0.0
+	var serie := 0
 	while int(quests.etat.balafre.etape) == 1 and game_t < 150.0:
 		await get_tree().physics_frame
-		game_t += 1.0 / 60.0; esquive_t -= 1.0 / 60.0
+		game_t += 1.0 / 60.0; esquive_t -= 1.0 / 60.0; pause_t -= 1.0 / 60.0
 		player.pv = max(player.pv, 45.0)          # on vérifie le combat, pas la survie
 		# compteurs : transitions d'état des voyous et du héros
 		for v in quests.bande:
@@ -635,10 +637,11 @@ func _test_mission() -> void:
 			player.move_input = Vector2(0, -1); player.sprint_held = bd > 5.0
 		else:
 			player.move_input = Vector2.ZERO
-			if player.state in [0, 7]:
-				player.attack(randf() < 0.15); rep.coups_portes += 1
-			elif player.state == 4 and player.state_t > player.state_len * 0.5:
-				player.attack(randf() < 0.15); rep.coups_portes += 1
+			# rythme d'un vrai joueur : une série de 3 ou 4 coups, puis une courte pause
+			if pause_t > 0.0: continue
+			if player.state in [0, 7] or (player.state == 4 and player.state_t > player.state_len * 0.5):
+				player.attack(randf() < 0.15); rep.coups_portes += 1; serie += 1
+				if serie >= 3 + randi() % 2: serie = 0; pause_t = randf_range(0.5, 1.1)
 	player.move_input = Vector2.ZERO
 	rep["duree_combat_s"] = game_t
 	rep["mission"] = quests.etat.balafre.duplicate()

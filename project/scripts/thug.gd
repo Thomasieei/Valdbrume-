@@ -42,6 +42,7 @@ var barre: Label3D
 var vol_t := 0.0
 var invuln := 0.0
 var _flash_t := 0.0
+var horloge := 0.0               # temps de jeu (ralentis compris)
 
 func setup(p_type: String, p_heros: Node3D) -> void:
 	type = p_type; d = TYPES[type]; heros = p_heros
@@ -122,7 +123,7 @@ func touche(dmg: float, from: Vector3, kind := "") -> void:
 		recul = side * 5.0 + away * 1.5
 		vis.play("Dodge_Left" if side.dot(Basis(Vector3.UP, vis.rotation.y) * Vector3.RIGHT) < 0 else "Dodge_Right", 0.05, 1.3, true)
 		return
-	var now := Time.get_ticks_msec() / 1000.0
+	var now := horloge
 	coups_recus = coups_recus + 1 if now - dernier_coup < 1.4 else 1
 	dernier_coup = now
 	pv -= dmg
@@ -132,8 +133,19 @@ func touche(dmg: float, from: Vector3, kind := "") -> void:
 		_projete(from, 1.25, dmg); return
 	if coups_recus >= 3:
 		_projete(from, 1.0, dmg); return
-	# réaction : recule selon le côté touché, interrompt son attaque
 	_hit_fx(dmg, from, kind == "lourd")
+	# le Cogneur encaisse sans broncher pendant qu'il frappe (super-armure)
+	if type == "cogneur" and etat in [E.ARMEMENT, E.ATTAQUE]:
+		recul = away * 1.2
+		return
+	# le Balafré, touché deux fois, se dégage d'un bond en arrière
+	if type == "balafre" and coups_recus == 2 and randf() < 0.4:
+		coups_recus = 0
+		_passe(E.ESQUIVE, 0.6)
+		recul = away * 8.0
+		vis.play("Hit_Knockback", 0.05, 1.6, true)
+		return
+	# réaction : recule selon le côté touché, interrompt son attaque
 	var cote := (Basis(Vector3.UP, vis.rotation.y) * Vector3.RIGHT).dot(-away)
 	var anim := "Hit_Chest"
 	if kind == "lourd": anim = "Hit_Stomach"
@@ -159,7 +171,7 @@ func _projete(from: Vector3, force: float, dmg: float) -> void:
 	away = away.normalized() if away.length() > 0.01 else -_avant()
 	vis.rotation.y = atan2(-away.x, -away.z)          # il regarde celui qui l'a frappé
 	var p := global_position + Vector3(0, hauteur * 0.6, 0) - away * 0.3
-	Fx.choc(get_parent(), p, 2.6 * force, Color(1.0, 0.85, 0.55), false, 0.3)
+	Fx.choc(get_parent(), p, 1.9 * force, Color(1.0, 0.85, 0.55), false, 0.3)
 	Fx.choc(get_parent(), global_position + Vector3(0, 0.06, 0), 4.0, Color(1.0, 0.8, 0.5), true, 0.45)
 	Fx.spawn(get_parent(), "Electric", "Radial_01", Transform3D(Basis(), p), 0.35 * force, 1.0)
 	Fx.flash(get_parent(), p, Color(1.0, 0.9, 0.7), 6.0, 9.0, 0.3)
@@ -174,7 +186,7 @@ func _projete(from: Vector3, force: float, dmg: float) -> void:
 
 # ------------------------------------------------------------------ boucle
 func _physics_process(dt: float) -> void:
-	t += dt; invuln = max(invuln - dt, 0.0)
+	t += dt; horloge += dt; invuln = max(invuln - dt, 0.0)
 	if jeton == null: _jeton_cd -= dt * 0.33       # partagé : avancé un peu par chacun
 	if _flash_t > 0.0:
 		_flash_t -= dt

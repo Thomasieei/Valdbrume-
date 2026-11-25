@@ -31,7 +31,7 @@ void fragment() {
 		float ang = abs(fract((a / 6.2831 + 0.5) * n) - 0.5);
 		float spike = smoothstep(0.16 * (1.0 - r / max(len, 0.01)), 0.0, ang) * step(r, len) * step(0.12 + progress * 0.35, r);
 		float ring = smoothstep(0.05, 0.0, abs(r - mix(0.2, 0.85, progress))) * 0.8;
-		float core = smoothstep(0.35 * (1.0 - progress), 0.0, r) * 1.6;
+		float core = smoothstep(0.28 * (1.0 - progress), 0.0, r) * 0.7;
 		c = (spike + ring + core) * fade;
 	}
 	ALBEDO = color.rgb * c * 2.2;
